@@ -1,0 +1,158 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+
+# Android related
+**/android/.gradle
+**/android/captures/
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+**/android/app/build/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+*.jks
+*.keystore
+*.aab
+*.apk
+output-metadata.json
+
+# iOS related
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*sync/
+**/ios/**/.sconsign.dblite
+**/ios/**/.tags*
+**/ios/**/.vagrant/
+**/ios/**/DerivedData/
+**/ios/**/Icon?
+**/ios/**/Pods/
+**/ios/**/.symlinks/
+**/ios/**/profile
+**/ios/**/xcuserdata
+**/ios/.generated/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/**/*.xcworkspace
+**/ios/**/*.xcodeproj
+**/ios/**/*.xcuserdata
+**/ios/**/*.xcscmblueprint
+
+# macOS related
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/ephemeral
+**/macos/.dart_tool
+**/macos/Flutter/flutter_export_environment.sh
+**/macos/**/*.xcodeproj
+**/macos/**/*.xcworkspace
+**/macos/**/*.xcuserdata
+**/macos/**/.symlinks/
+
+# Web related
+**/web/*.dart.js
+**/web/*.dart.js.map
+**/web/*.js_
+**/web/*.js.deps
+**/web/*.js.map
+**/web/assets/AssetManifest.json
+**/web/assets/FontManifest.json
+**/web/assets/NOTICES
+
+# Windows related
+**/windows/flutter/generated_plugin_registrant.cc
+**/windows/flutter/generated_plugin_registrant.h
+**/windows/flutter/generated_plugins.cmake
+**/windows/**/cmake_install.cmake
+**/windows/**/CMakeFiles/
+**/windows/**/CMakeCache.txt
+**/windows/**/*.vcxproj
+**/windows/**/*.vcxproj.filters
+**/windows/**/*.vcxproj.user
+**/windows/**/x64/
+**/windows/**/Debug/
+**/windows/**/Release/
+**/windows/**/build/
+**/windows/**/.vs/
+**/windows/**/.vscode/
+
+# Linux related
+**/linux/flutter/generated_plugin_registrant.cc
+**/linux/flutter/generated_plugin_registrant.h
+**/linux/flutter/generated_plugins.cmake
+**/linux/**/cmake_install.cmake
+**/linux/**/CMakeFiles/
+**/linux/**/CMakeCache.txt
+**/linux/**/build/
+
+# Coverage
+coverage/₹
+
+# Exceptions to above rules.
+!/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+!/dev/ci/**/Gemfile.lock
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+GoogleService-Info.plist
+
+# Android Profiling
+*.hprof
+
+# External Native Build
+.cxx/
+.externalNativeBuild/
+
+# Local configuration file (sdk path, etc)
+local.properties

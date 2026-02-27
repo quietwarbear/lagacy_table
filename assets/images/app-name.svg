@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style type="text/css"><![CDATA[
+      @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap');
+    ]]></style>
+  </defs>
+  
+  <!-- Main app name -->
+  <text 
+    x="200" 
+    y="60" 
+    text-anchor="middle"
+    font-family="'Dancing Script', cursive, serif" 
+    font-size="48" 
+    font-weight="700" 
+    fill="#4A3728"
+    letter-spacing="2px"
+  >Legacy Tables</text>
+
+  <!-- Subtitle -->
+  <text 
+    x="200" 
+    y="90" 
+    text-anchor="middle"
+    font-family="Arial, sans-serif" 
+    font-size="14" 
+    font-weight="500" 
+    fill="#6B7280"
+    letter-spacing="8px"
+    text-transform="uppercase"
+  >Family Recipes</text>
+</svg>
