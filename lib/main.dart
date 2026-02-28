@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
               locale: DevicePreview.locale(context),
               builder: DevicePreview.appBuilder,
               debugShowCheckedModeBanner: false,
-              title: 'Legacy Tables',
+              title: 'Legacy Table',
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               home: const Scaffold(
@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
             locale: DevicePreview.locale(context),
             builder: DevicePreview.appBuilder,
             debugShowCheckedModeBanner: false,
-            title: 'Legacy Tables',
+            title: 'Legacy Table',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,

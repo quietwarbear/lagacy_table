@@ -175,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? '\n\n${family.description}'
         : '';
     
-    final shareText = 'Join my family "${family.name}" on Legacy Tables!\n\n'
+    final shareText = 'Join my family "${family.name}" on Legacy Table!\n\n'
         'Invite Code: ${family.inviteCode}'
         '$descriptionText';
     
@@ -1219,7 +1219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               subtitle: Text(
-                'Legacy Tables Family Recipes',
+                'Legacy Table Family Recipes',
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontSize: 14,

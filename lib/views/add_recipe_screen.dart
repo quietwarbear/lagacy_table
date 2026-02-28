@@ -158,7 +158,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
           if (mounted) {
             _showPermissionDeniedDialog(
               'Photo Library Permission',
-              'Photo library permission is required to select images.\n\nTo enable:\n1. Tap "Open Settings"\n2. Find "Legacy Tables"\n3. Tap "Photos"\n4. Select "All Photos" or "Selected Photos"',
+              'Photo library permission is required to select images.\n\nTo enable:\n1. Tap "Open Settings"\n2. Find "Legacy Table"\n3. Tap "Photos"\n4. Select "All Photos" or "Selected Photos"',
             );
           }
         }
@@ -265,10 +265,10 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
 
   Future<void> _uploadFromGallery() async {
     try {
-      final hasPermission = await _requestGalleryPermission();
-      if (!hasPermission) {
-        return;
-      }
+      // final hasPermission = await _requestGalleryPermission();
+      // if (!hasPermission) {
+      //   return;
+      // }
 
       final ImagePicker picker = ImagePicker();
       final List<XFile> images = await picker.pickMultiImage();

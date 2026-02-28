@@ -182,13 +182,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           return;
         }
       } else {
-        final ok = await _requestGalleryPermission();
-        if (!ok) {
-          if (mounted) {
-            StyledSnackBar.showWarning(context, 'Photo library permission is required to choose a photo');
-          }
-          return;
-        }
+        // final ok = await _requestGalleryPermission();
+        // if (!ok) {
+        //   if (mounted) {
+        //     StyledSnackBar.showWarning(context, 'Photo library permission is required to choose a photo');
+        //   }
+        //   return;
+        // }
       }
 
       final XFile? image = await picker.pickImage(

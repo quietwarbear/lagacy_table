@@ -126,20 +126,35 @@ class PdfService {
   }
 
   /// Share PDF using share_plus
+  /// Uses XFile.fromData on iOS to avoid temp file path issues with the share sheet
   Future<void> sharePDF(Uint8List pdfBytes, String fileName) async {
     try {
-      // Create a temporary file to share
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$fileName');
-      await tempFile.writeAsBytes(pdfBytes);
+      if (Platform.isIOS) {
+        // iOS: Use fromData to avoid "source file doesn't exist" and share sheet access issues
+        await Share.shareXFiles(
+          [
+            XFile.fromData(
+              pdfBytes,
+              mimeType: 'application/pdf',
+              name: fileName,
+            ),
+          ],
+          text: 'Family Cookbook - Legacy Table',
+          subject: 'Family Cookbook PDF',
+        );
+      } else {
+        // Android/other: Write to temp file and share
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/$fileName');
+        await tempFile.writeAsBytes(pdfBytes);
 
-      // Share the file
-      await Share.shareXFiles(
-        [XFile(tempFile.path)],
-        text: 'Family Cookbook - Legacy Tables',
-        subject: 'Family Cookbook PDF',
-      );
-      
+        await Share.shareXFiles(
+          [XFile(tempFile.path, mimeType: 'application/pdf')],
+          text: 'Family Cookbook - Legacy Table',
+          subject: 'Family Cookbook PDF',
+        );
+      }
+
       if (kDebugMode) {
         print('PDF shared successfully');
       }
@@ -178,7 +193,7 @@ class PdfService {
           children: [
             // Title
             pw.Text(
-              'Legacy Tables',
+              'Legacy Table',
               style: pw.TextStyle(
                 fontSize: 48,
                 fontWeight: pw.FontWeight.bold,

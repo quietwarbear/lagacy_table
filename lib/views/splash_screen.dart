@@ -68,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> {
               // const SizedBox(height: 12),
               // App Name
               Text(
-                'Legacy Tables',
+                'Legacy Table',
                 style: TextStyle(
                   fontFamily: 'Dancing Script',
                   fontSize: 48,

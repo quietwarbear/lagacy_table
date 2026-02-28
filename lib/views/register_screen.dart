@@ -130,7 +130,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     // Title
                     Text(
-                      'Legacy Tables',
+                      'Legacy Table',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Dancing Script',

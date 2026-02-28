@@ -1,6 +1,6 @@
 # Icons Directory
 
-This directory contains all the SVG icons used in the Legacy Tables Family Recipes application.
+This directory contains all the SVG icons used in the Legacy Table Family Recipes application.
 
 ## Source
 

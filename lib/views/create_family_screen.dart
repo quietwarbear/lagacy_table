@@ -505,7 +505,7 @@ class _CreateFamilyScreenState extends State<CreateFamilyScreen> {
                         ? '\n\n${family.description}'
                         : '';
                     
-                    final shareText = 'Join my family "${family.name}" on Legacy Tables!\n\n'
+                    final shareText = 'Join my family "${family.name}" on Legacy Table!\n\n'
                         'Invite Code: ${family.inviteCode}'
                         '$descriptionText';
                     

@@ -122,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
   
                     // Title
                     Text(
-                      'Legacy Tables',
+                      'Legacy Table',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Dancing Script',
