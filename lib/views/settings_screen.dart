@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/theme_provider.dart';
 import '../config/app_theme.dart';
 import '../services/session_manager.dart';
@@ -26,6 +27,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Family? _family;
   List<User> _familyMembers = [];
   bool _isLoadingMembers = false;
+
+  Future<void> _openDeleteAccountPage() async {
+    final uri = Uri.parse('https://legacytable.app/delete-account');
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        StyledSnackBar.showError(context, 'Could not open delete account page');
+      }
+    } catch (_) {
+      if (mounted) {
+        StyledSnackBar.showError(context, 'Could not open delete account page');
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -1149,6 +1167,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 );
               },
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Delete Account
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: isDark ? DarkColors.border : LightColors.border,
+                width: 1,
+              ),
+            ),
+            color: isDark ? DarkColors.surface : LightColors.surface,
+            child: ListTile(
+              leading: Icon(
+                Icons.delete_outline,
+                color: Colors.red,
+              ),
+              title: Text(
+                'Delete Account',
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red,
+                ),
+              ),
+              trailing: Icon(
+                Icons.open_in_new,
+                color: isDark ? DarkColors.textMuted : LightColors.textMuted,
+              ),
+              onTap: _openDeleteAccountPage,
             ),
           ),
           const SizedBox(height: 16),
