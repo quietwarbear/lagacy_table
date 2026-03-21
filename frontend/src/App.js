@@ -602,7 +602,7 @@ const LoginPage = () => {
   const googleButtonRef = React.useRef(null);
 
   useEffect(() => {
-    if (user) navigate("/");
+    if (user) navigate("/subscribe");
   }, [user, navigate]);
 
   // Initialize Google Sign-In
