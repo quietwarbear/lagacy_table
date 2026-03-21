@@ -24,6 +24,8 @@ import {
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
 
+import { SubscriptionProvider, useSubscription, PricingPage, SubscriptionSuccessPage } from "./subscription";
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api`;
 
@@ -647,7 +649,7 @@ const LoginPage = () => {
       });
       login(res.data.token, res.data.user);
       toast.success("Welcome!");
-      navigate("/");
+      navigate("/subscribe");
     } catch (error) {
       toast.error(error.response?.data?.detail || "Google sign-in failed");
     }
@@ -663,7 +665,7 @@ const LoginPage = () => {
       const response = await axios.post(`${API}${endpoint}`, payload);
       login(response.data.token, response.data.user);
       toast.success(isLogin ? "Welcome back!" : "Account created successfully!");
-      navigate("/");
+      navigate("/subscribe");
     } catch (error) {
       toast.error(error.response?.data?.detail || "An error occurred");
     }
@@ -3631,19 +3633,23 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-              <Route path="/delete-account" element={<DeleteAccountPage />} />
-              <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-              <Route path="/add-recipe" element={<ProtectedRoute><AddRecipePage /></ProtectedRoute>} />
-              <Route path="/recipe/:id" element={<ProtectedRoute><RecipeDetailPage /></ProtectedRoute>} />
-              <Route path="/recipe/:id/edit" element={<ProtectedRoute><EditRecipePage /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-              <Route path="/family" element={<ProtectedRoute><FamilyPage /></ProtectedRoute>} />
-              <Route path="/cookbook" element={<ProtectedRoute><CookbookPage /></ProtectedRoute>} />
-            </Routes>
+            <SubscriptionProvider>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/delete-account" element={<DeleteAccountPage />} />
+                <Route path="/subscribe" element={<ProtectedRoute><PricingPage /></ProtectedRoute>} />
+                <Route path="/subscription-success" element={<ProtectedRoute><SubscriptionSuccessPage /></ProtectedRoute>} />
+                <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+                <Route path="/add-recipe" element={<ProtectedRoute><AddRecipePage /></ProtectedRoute>} />
+                <Route path="/recipe/:id" element={<ProtectedRoute><RecipeDetailPage /></ProtectedRoute>} />
+                <Route path="/recipe/:id/edit" element={<ProtectedRoute><EditRecipePage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                <Route path="/family" element={<ProtectedRoute><FamilyPage /></ProtectedRoute>} />
+                <Route path="/cookbook" element={<ProtectedRoute><CookbookPage /></ProtectedRoute>} />
+              </Routes>
+            </SubscriptionProvider>
           </BrowserRouter>
           <Toaster position="top-center" richColors />
         </AuthProvider>
