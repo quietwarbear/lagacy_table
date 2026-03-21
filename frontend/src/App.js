@@ -589,16 +589,70 @@ const Navigation = () => {
 };
 
 // Login Page
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const googleButtonRef = React.useRef(null);
 
   useEffect(() => {
     if (user) navigate("/");
   }, [user, navigate]);
+
+  // Initialize Google Sign-In
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || user) return;
+
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleResponse,
+      });
+      if (googleButtonRef.current) {
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          type: "standard",
+          theme: "filled_black",
+          size: "large",
+          text: "continue_with",
+          shape: "pill",
+          width: 320,
+        });
+      }
+    };
+
+    // Load the GSI script if not already loaded
+    if (!document.getElementById("google-gsi-script")) {
+      const script = document.createElement("script");
+      script.id = "google-gsi-script";
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogle;
+      document.head.appendChild(script);
+    } else {
+      initGoogle();
+    }
+  }, [user]);
+
+  const handleGoogleResponse = async (response) => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API}/auth/google`, {
+        credential: response.credential,
+      });
+      login(res.data.token, res.data.user);
+      toast.success("Welcome!");
+      navigate("/");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Google sign-in failed");
+    }
+    setLoading(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -688,6 +742,20 @@ const LoginPage = () => {
             {isLogin ? "Create account" : "Sign in"}
           </button>
         </p>
+
+        {GOOGLE_CLIENT_ID && (
+          <>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/50"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-card px-4 text-muted-foreground">or</span>
+              </div>
+            </div>
+            <div className="flex justify-center" ref={googleButtonRef}></div>
+          </>
+        )}
       </div>
     </div>
   );
