@@ -1369,6 +1369,85 @@ async def stripe_webhook(request: Request):
     return {"status": "ok"}
 
 
+# ---- Stripe Checkout (web subscriptions) ----
+
+class CheckoutRequest(BaseModel):
+    price_id: str
+    success_url: str = "https://legacytable.app/subscription/success"
+    cancel_url: str = "https://legacytable.app/pricing"
+
+
+@api_router.post("/subscriptions/create-checkout-session")
+async def create_checkout_session(body: CheckoutRequest, user: dict = Depends(get_current_user)):
+    """Create a Stripe Checkout Session for web subscription purchase."""
+    stripe_secret = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not stripe_secret:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+
+    import stripe as stripe_lib
+    stripe_lib.api_key = stripe_secret
+
+    # Validate the price ID is one of our known subscription prices
+    if body.price_id not in STRIPE_PRICE_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid price ID")
+
+    # Reuse existing Stripe customer or create one
+    customer_id = user.get("stripe_customer_id")
+    if not customer_id:
+        try:
+            customer = stripe_lib.Customer.create(
+                email=user.get("email", ""),
+                metadata={"legacy_table_user_id": user.get("id", "")},
+            )
+            customer_id = customer.id
+            await db.users.update_one(
+                {"id": user["id"]},
+                {"$set": {"stripe_customer_id": customer_id}},
+            )
+        except Exception as e:
+            logger.error("Failed to create Stripe customer: %s", e)
+            raise HTTPException(status_code=500, detail="Could not create customer")
+
+    try:
+        session = stripe_lib.checkout.Session.create(
+            customer=customer_id,
+            mode="subscription",
+            line_items=[{"price": body.price_id, "quantity": 1}],
+            success_url=body.success_url + "?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=body.cancel_url,
+            allow_promotion_codes=True,
+        )
+        return {"checkout_url": session.url}
+    except Exception as e:
+        logger.error("Failed to create checkout session: %s", e)
+        raise HTTPException(status_code=500, detail="Could not create checkout session")
+
+
+@api_router.post("/subscriptions/create-portal-session")
+async def create_portal_session(user: dict = Depends(get_current_user)):
+    """Create a Stripe Customer Portal session so users can manage their subscription."""
+    stripe_secret = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not stripe_secret:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+
+    import stripe as stripe_lib
+    stripe_lib.api_key = stripe_secret
+
+    customer_id = user.get("stripe_customer_id")
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="No active subscription found")
+
+    try:
+        session = stripe_lib.billing_portal.Session.create(
+            customer=customer_id,
+            return_url="https://legacytable.app/settings",
+        )
+        return {"portal_url": session.url}
+    except Exception as e:
+        logger.error("Failed to create portal session: %s", e)
+        raise HTTPException(status_code=500, detail="Could not create portal session")
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
