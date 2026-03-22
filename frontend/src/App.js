@@ -363,6 +363,16 @@ const Navigation = () => {
             </div>
 
             <div className="hidden md:flex items-center gap-3">
+              {/* Upgrade Button */}
+              <Link
+                to="/subscribe"
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                data-testid="nav-upgrade"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                Upgrade
+              </Link>
+
               {/* Notifications */}
               <div className="relative">
                 <button
@@ -529,8 +539,17 @@ const Navigation = () => {
             <Users className="w-5 h-5 text-primary" />
             <span className="font-medium">Family</span>
           </Link>
-          <Link 
-            to="/settings" 
+          <Link
+            to="/subscribe"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-primary/10"
+            data-testid="mobile-nav-upgrade"
+          >
+            <Crown className="w-5 h-5 text-primary" />
+            <span className="font-medium text-primary">Upgrade Plan</span>
+          </Link>
+          <Link
+            to="/settings"
             onClick={() => setMobileMenuOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted"
           >
@@ -2752,6 +2771,31 @@ const SettingsPage = () => {
                       </Button>
                     </p>
                   )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Subscription */}
+          <Card className="rounded-2xl border-border/50">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-lg mb-4">Subscription</h3>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm text-muted-foreground">Current Plan</Label>
+                  <p className="text-foreground font-medium capitalize">Free Plan</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="rounded-full bg-primary text-primary-foreground"
+                    onClick={() => navigate("/subscribe")}
+                    data-testid="settings-upgrade-btn"
+                  >
+                    <Crown className="w-4 h-4 mr-2" />
+                    Upgrade Plan
+                  </Button>
                 </div>
               </div>
             </CardContent>
