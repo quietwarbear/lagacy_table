@@ -5,7 +5,7 @@ import '../config/app_config.dart';
 class SubscriptionService {
   // RevenueCat API keys — one per platform
   static const String _appleApiKey = 'appl_ESkZxQXdLyJjZGPyXwhMtegGhoC';
-  // Google key will be added after Play Store connection is set up in RevenueCat
+  // Google Play Store RevenueCat key
   static const String _googleApiKey = 'goog_ZxxXVaTzAedcvvJ0EUHtjYuUyVE';
 
   // Entitlement identifiers (must match RevenueCat dashboard)

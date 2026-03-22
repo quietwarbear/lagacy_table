@@ -11,8 +11,8 @@ This app supports two environments: **Development** and **Production**.
 This is the default environment. The app will use localhost when running in debug mode.
 
 ### Production
-- **Base URL**: `https://family-dish.emergent.host`
-- **Full API URL**: `https://family-dish.emergent.host/api`
+- **Base URL**: `https://api.legacytable.app`
+- **Full API URL**: `https://api.legacytable.app/api`
 
 ## How to Switch Environments
 
