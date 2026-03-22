@@ -6,7 +6,7 @@ class SubscriptionService {
   // RevenueCat API keys — one per platform
   static const String _appleApiKey = 'appl_ESkZxQXdLyJjZGPyXwhMtegGhoC';
   // Google key will be added after Play Store connection is set up in RevenueCat
-  static const String _googleApiKey = 'goog_REPLACE_WITH_YOUR_GOOGLE_RC_KEY';
+  static const String _googleApiKey = 'goog_ZxxXVaTzAedcvvJ0EUHtjYuUyVE';
 
   // Entitlement identifiers (must match RevenueCat dashboard)
   static const String entitlementHeritage = 'heritage_access';
