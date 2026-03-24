@@ -12,6 +12,7 @@ class SessionManager extends ChangeNotifier {
   User? _currentUser;
   bool _isLoggedIn = false;
   bool _isLoading = false;
+  late final Future<void> initialized;
 
   SessionManager({
     ApiService? apiService,
@@ -19,7 +20,7 @@ class SessionManager extends ChangeNotifier {
   })  : _apiService = apiService ?? _getGlobalApiService(),
         _storageService = storageService ?? StorageService(),
         _authService = (apiService ?? _getGlobalApiService()).auth {
-    _initialize();
+    initialized = _initialize();
   }
 
   // Get the global API service singleton
@@ -108,6 +109,42 @@ class SessionManager extends ChangeNotifier {
     } catch (e) {
       if (kDebugMode) {
         print('Login error: $e');
+      }
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Google Sign-In
+  Future<void> googleLogin(String idToken) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final loginResponse = await _authService.googleSignIn(idToken);
+
+      // Save token and user data
+      await _storageService.saveAuthToken(loginResponse.token);
+      await _storageService.saveUserId(loginResponse.user.id);
+      await _storageService.saveUserEmail(loginResponse.user.email);
+      await _storageService.setLoggedIn(true);
+
+      if (loginResponse.user.familyId != null) {
+        await _storageService.saveFamilyId(loginResponse.user.familyId);
+      }
+      if (loginResponse.user.role != null) {
+        await _storageService.saveUserRole(loginResponse.user.role);
+      }
+
+      _apiService.setAuthToken(loginResponse.token);
+
+      _currentUser = loginResponse.user;
+      _isLoggedIn = true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Google login error: $e');
       }
       rethrow;
     } finally {

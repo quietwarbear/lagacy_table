@@ -29,6 +29,17 @@ class AuthService {
     return loginResponse;
   }
 
+  // Google Sign-In — send ID token to backend
+  Future<LoginResponse> googleSignIn(String idToken) async {
+    final response = await _apiClient.post(
+      ApiConfig.googleAuth,
+      data: {'credential': idToken},
+    );
+    final loginResponse = LoginResponse.fromJson(response.data);
+    _apiClient.setAuthToken(loginResponse.token);
+    return loginResponse;
+  }
+
   // Get current user
   Future<User> getCurrentUser() async {
     final response = await _apiClient.get(ApiConfig.currentUser);

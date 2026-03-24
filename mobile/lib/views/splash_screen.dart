@@ -4,6 +4,7 @@ import 'dart:async';
 import '../providers/theme_provider.dart';
 import '../config/app_theme.dart';
 import '../services/storage_service.dart';
+import '../services/session_manager.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,20 +21,23 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkOnboardingStatus() async {
-    // Wait for splash screen display
-    await Future.delayed(const Duration(seconds: 3));
+    // Wait for splash screen display and session validation in parallel
+    await Future.wait([
+      Future.delayed(const Duration(seconds: 3)),
+      sessionManager.initialized,
+    ]);
 
     if (!mounted) return;
 
     final storageService = StorageService();
     final isOnboardingCompleted = await storageService.isOnboardingCompleted();
-    final isLoggedIn = await storageService.isLoggedIn();
 
     if (mounted) {
       if (!isOnboardingCompleted) {
         // First time user, show onboarding
         Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else if (isLoggedIn) {
+      } else if (sessionManager.isLoggedIn) {
+        // Use validated session state, not raw storage flag
         Navigator.of(context).pushReplacementNamed('/home');
       } else {
         Navigator.of(context).pushReplacementNamed('/login');
