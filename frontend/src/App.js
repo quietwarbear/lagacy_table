@@ -1832,151 +1832,439 @@ const EditRecipePage = () => {
 };
 
 // Share Recipe Card Component
+// ===================== SHARE ASSET THEMES =====================
+
+const SHARE_THEMES = [
+  {
+    id: 'heritage',
+    name: 'Heritage',
+    gradient: [['#D4A574', 0], ['#D97A6E', 0.5], ['#A89968', 1]],
+    textColor: '#FFFFFF',
+    accentColor: 'rgba(255,255,255,0.3)',
+    decorBorder: 'rgba(255,255,255,0.15)',
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    gradient: [['#1a1a2e', 0], ['#16213e', 0.5], ['#0f3460', 1]],
+    textColor: '#e8d5b7',
+    accentColor: 'rgba(232,213,183,0.25)',
+    decorBorder: 'rgba(232,213,183,0.1)',
+  },
+  {
+    id: 'garden',
+    name: 'Garden',
+    gradient: [['#2d5016', 0], ['#3a5a1c', 0.5], ['#4a7c2e', 1]],
+    textColor: '#f5f0e1',
+    accentColor: 'rgba(245,240,225,0.25)',
+    decorBorder: 'rgba(245,240,225,0.1)',
+  },
+  {
+    id: 'spice',
+    name: 'Spice',
+    gradient: [['#8B2500', 0], ['#A0522D', 0.5], ['#CD853F', 1]],
+    textColor: '#FFF8DC',
+    accentColor: 'rgba(255,248,220,0.25)',
+    decorBorder: 'rgba(255,248,220,0.12)',
+  },
+  {
+    id: 'ivory',
+    name: 'Ivory',
+    gradient: [['#FAF0E6', 0], ['#F5DEB3', 0.5], ['#FAEBD7', 1]],
+    textColor: '#3E2723',
+    accentColor: 'rgba(62,39,35,0.15)',
+    decorBorder: 'rgba(62,39,35,0.08)',
+  },
+];
+
+const SHARE_FORMATS = [
+  { id: 'square', name: 'Square', width: 1080, height: 1080, label: '1:1' },
+  { id: 'story', name: 'Story', width: 1080, height: 1920, label: '9:16' },
+];
+
+// Canvas text wrapping helper
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let currentLine = '';
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
+// Draw decorative corner flourishes
+function drawCornerFlourishes(ctx, w, h, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  const inset = 40;
+  const len = 60;
+  // Top-left
+  ctx.beginPath();
+  ctx.moveTo(inset, inset + len); ctx.lineTo(inset, inset); ctx.lineTo(inset + len, inset);
+  ctx.stroke();
+  // Top-right
+  ctx.beginPath();
+  ctx.moveTo(w - inset - len, inset); ctx.lineTo(w - inset, inset); ctx.lineTo(w - inset, inset + len);
+  ctx.stroke();
+  // Bottom-left
+  ctx.beginPath();
+  ctx.moveTo(inset, h - inset - len); ctx.lineTo(inset, h - inset); ctx.lineTo(inset + len, h - inset);
+  ctx.stroke();
+  // Bottom-right
+  ctx.beginPath();
+  ctx.moveTo(w - inset - len, h - inset); ctx.lineTo(w - inset, h - inset); ctx.lineTo(w - inset, h - inset - len);
+  ctx.stroke();
+}
+
+// Main canvas renderer
+function renderShareCanvas(canvas, recipe, theme, format, photoImg, isFree) {
+  const ctx = canvas.getContext('2d');
+  const w = format.width;
+  const h = format.height;
+  canvas.width = w;
+  canvas.height = h;
+
+  // Background gradient
+  const gradient = ctx.createLinearGradient(0, 0, w, h);
+  for (const [color, stop] of theme.gradient) {
+    gradient.addColorStop(stop, color);
+  }
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+
+  // Photo background if available
+  if (photoImg) {
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    const imgRatio = photoImg.width / photoImg.height;
+    const canvasRatio = w / h;
+    let sw, sh, sx, sy;
+    if (imgRatio > canvasRatio) {
+      sh = photoImg.height; sw = sh * canvasRatio;
+      sx = (photoImg.width - sw) / 2; sy = 0;
+    } else {
+      sw = photoImg.width; sh = sw / canvasRatio;
+      sx = 0; sy = (photoImg.height - sh) / 2;
+    }
+    ctx.drawImage(photoImg, sx, sy, sw, sh, 0, 0, w, h);
+    ctx.globalAlpha = 1.0;
+    // Dark overlay for text readability
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  // Top accent bar
+  ctx.fillStyle = theme.decorBorder;
+  ctx.fillRect(0, 0, w, 8);
+
+  // Corner flourishes
+  drawCornerFlourishes(ctx, w, h, theme.accentColor);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const maxTextW = w - 140;
+  const isStory = format.id === 'story';
+
+  // Adaptive sizes for story vs square
+  const titleSize = isStory ? 64 : 56;
+  const subtitleSize = isStory ? 36 : 32;
+  const detailSize = isStory ? 28 : 24;
+  const storySize = isStory ? 26 : 22;
+
+  // Starting Y — push content lower for story format
+  let y = isStory ? 300 : 150;
+
+  // Category badge
+  if (recipe.category) {
+    ctx.font = `bold ${isStory ? 18 : 16}px Arial, sans-serif`;
+    const catW = ctx.measureText(recipe.category.toUpperCase()).width + 32;
+    ctx.fillStyle = theme.accentColor;
+    const badgeRadius = 16;
+    const badgeX = (w - catW) / 2;
+    const badgeY = y - (isStory ? 60 : 50);
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, catW, 32, badgeRadius);
+    ctx.fill();
+    ctx.fillStyle = theme.textColor;
+    ctx.fillText(recipe.category.toUpperCase(), w / 2, badgeY + 7);
+  }
+
+  // Title
+  ctx.font = `bold ${titleSize}px Georgia, serif`;
+  ctx.fillStyle = theme.textColor;
+  const titleLines = wrapCanvasText(ctx, recipe.title, maxTextW);
+  for (const line of titleLines) {
+    ctx.fillText(line, w / 2, y);
+    y += titleSize + 14;
+  }
+
+  // Author
+  y += 30;
+  ctx.font = `italic ${subtitleSize}px Georgia, serif`;
+  ctx.fillStyle = theme.textColor;
+  ctx.globalAlpha = 0.9;
+  ctx.fillText(`A family recipe by ${recipe.author_name}`, w / 2, y);
+  ctx.globalAlpha = 1;
+  y += subtitleSize + 50;
+
+  // Details row
+  ctx.font = `${detailSize}px Georgia, serif`;
+  ctx.fillStyle = theme.textColor;
+  ctx.globalAlpha = 0.85;
+  const details = [];
+  if (recipe.cooking_time) details.push(`${recipe.cooking_time} min`);
+  if (recipe.servings) details.push(`Serves ${recipe.servings}`);
+  if (recipe.difficulty) details.push(recipe.difficulty.charAt(0).toUpperCase() + recipe.difficulty.slice(1));
+  ctx.fillText(details.join('  •  '), w / 2, y);
+  ctx.globalAlpha = 1;
+  y += detailSize + 40;
+
+  // Divider
+  ctx.strokeStyle = theme.accentColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.2, y);
+  ctx.lineTo(w * 0.8, y);
+  ctx.stroke();
+  y += 40;
+
+  // Story snippet (if available and there's room)
+  if (recipe.story) {
+    ctx.font = `italic ${storySize}px Georgia, serif`;
+    ctx.fillStyle = theme.textColor;
+    ctx.globalAlpha = 0.75;
+    const storySnippet = recipe.story.length > 120 ? recipe.story.slice(0, 117) + '...' : recipe.story;
+    const storyLines = wrapCanvasText(ctx, `"${storySnippet}"`, maxTextW - 40);
+    const maxStoryLines = isStory ? 5 : 3;
+    for (let i = 0; i < Math.min(storyLines.length, maxStoryLines); i++) {
+      ctx.fillText(storyLines[i], w / 2, y);
+      y += storySize + 10;
+    }
+    ctx.globalAlpha = 1;
+    y += 30;
+  }
+
+  // Ingredients preview (story format has room)
+  if (isStory && recipe.ingredients && recipe.ingredients.length > 0) {
+    y += 10;
+    ctx.font = `bold ${20}px Arial, sans-serif`;
+    ctx.fillStyle = theme.textColor;
+    ctx.globalAlpha = 0.7;
+    ctx.fillText('INGREDIENTS', w / 2, y);
+    y += 36;
+    ctx.font = `${22}px Georgia, serif`;
+    ctx.globalAlpha = 0.65;
+    const maxIngredients = Math.min(recipe.ingredients.length, 6);
+    for (let i = 0; i < maxIngredients; i++) {
+      const ing = recipe.ingredients[i].length > 40 ? recipe.ingredients[i].slice(0, 37) + '...' : recipe.ingredients[i];
+      ctx.fillText(ing, w / 2, y);
+      y += 30;
+    }
+    if (recipe.ingredients.length > 6) {
+      ctx.fillText(`+ ${recipe.ingredients.length - 6} more`, w / 2, y);
+      y += 30;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Footer — pinned near bottom
+  const footerY = h - (isStory ? 180 : 130);
+  ctx.font = `bold 20px Arial, sans-serif`;
+  ctx.fillStyle = theme.textColor;
+  ctx.globalAlpha = 0.9;
+  ctx.fillText('legacytable.app', w / 2, footerY);
+  ctx.font = `28px Georgia, serif`;
+  ctx.globalAlpha = 1;
+  ctx.fillText('Legacy Table', w / 2, footerY + 35);
+  ctx.font = `14px Arial, sans-serif`;
+  ctx.globalAlpha = 0.7;
+  ctx.fillText('Preserve and Share Your Family Culinary Heritage', w / 2, footerY + 75);
+  ctx.globalAlpha = 1;
+
+  // Watermark for free-tier users
+  if (isFree) {
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-Math.PI / 6);
+    ctx.font = 'bold 72px Arial, sans-serif';
+    ctx.fillStyle = theme.id === 'ivory' ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.18)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('LEGACY TABLE', 0, -40);
+    ctx.font = 'bold 32px Arial, sans-serif';
+    ctx.fillText('Upgrade to remove watermark', 0, 30);
+    ctx.restore();
+  }
+}
+
+// Share Recipe Card with theme & format selection
 const ShareRecipeCard = ({ recipe }) => {
   const canvasRef = React.useRef(null);
   const { hasAny } = useSubscription();
+  const [themeId, setThemeId] = useState('heritage');
+  const [formatId, setFormatId] = useState('square');
+  const [photoImg, setPhotoImg] = useState(null);
+
+  const theme = SHARE_THEMES.find(t => t.id === themeId) || SHARE_THEMES[0];
+  const format = SHARE_FORMATS.find(f => f.id === formatId) || SHARE_FORMATS[0];
+
+  // Load first recipe photo as background
+  useEffect(() => {
+    if (!recipe.photos || recipe.photos.length === 0) {
+      setPhotoImg(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const src = recipe.photos[0].startsWith('data:') ? recipe.photos[0] : recipe.photos[0];
+    img.onload = () => setPhotoImg(img);
+    img.onerror = () => setPhotoImg(null);
+    img.src = src;
+  }, [recipe.photos]);
+
+  // Render canvas when theme/format/photo changes
   useEffect(() => {
     if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    canvas.width = 1080;
-    canvas.height = 1080;
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, '#D4A574');
-    gradient.addColorStop(0.5, '#D97A6E');
-    gradient.addColorStop(1, '#A89968');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(0, 0, canvas.width, 8);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 56px Georgia, serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    const maxWidth = canvas.width - 80;
-    const title = recipe.title;
-    const titleLines = [];
-    let currentLine = '';
-    for (let i = 0; i < title.length; i++) {
-      const testLine = currentLine + title[i];
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && currentLine.length > 0) {
-        titleLines.push(currentLine);
-        currentLine = title[i];
-      } else {
-        currentLine = testLine;
-      }
-    }
-    titleLines.push(currentLine);
-    let yPos = 150;
-    titleLines.forEach((line) => {
-      ctx.fillText(line, canvas.width / 2, yPos);
-      yPos += 70;
-    });
-    ctx.font = 'italic 32px Georgia, serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    yPos += 40;
-    ctx.fillText(`A family recipe by ${recipe.author_name}`, canvas.width / 2, yPos);
-    yPos += 80;
-    ctx.font = '24px Georgia, serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    const details = `${recipe.cooking_time} min • Serves ${recipe.servings}`;
-    ctx.fillText(details, canvas.width / 2, yPos);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 2;
-    yPos += 60;
-    ctx.beginPath();
-    ctx.moveTo(200, yPos);
-    ctx.lineTo(canvas.width - 200, yPos);
-    ctx.stroke();
-    yPos += 60;
-    ctx.font = 'bold 20px Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillText('legacytable.app/recipes/' + recipe.id, canvas.width / 2, yPos);
-    yPos += 70;
-    ctx.font = '28px Georgia, serif';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('Legacy Table', canvas.width / 2, yPos);
-    ctx.font = '14px Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.fillText('Preserve and Share Your Family Culinary Heritage', canvas.width / 2, yPos + 40);
+    renderShareCanvas(canvasRef.current, recipe, theme, format, photoImg, !hasAny);
+  }, [recipe, theme, format, photoImg, hasAny]);
 
-    // Watermark for free-tier users
-    if (!hasAny) {
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate(-Math.PI / 6);
-      ctx.font = 'bold 72px Arial, sans-serif';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('LEGACY TABLE', 0, -40);
-      ctx.font = 'bold 32px Arial, sans-serif';
-      ctx.fillText('Upgrade to remove watermark', 0, 30);
-      ctx.restore();
-    }
-  }, [recipe, hasAny]);
   const handleDownloadImage = () => {
     if (!canvasRef.current) return;
     const link = document.createElement('a');
     link.href = canvasRef.current.toDataURL('image/png');
-    link.download = `${recipe.title.replace(/\s+/g, '_')}_legacy_table.png`;
+    const suffix = formatId === 'story' ? '_story' : '';
+    link.download = `${recipe.title.replace(/\s+/g, '_')}${suffix}_legacy_table.png`;
     link.click();
     toast.success('Image downloaded!');
   };
+
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/recipe/${recipe.id}`;
-    const shareData = {
-      title: recipe.title,
-      text: `Check out "${recipe.title}" - A family recipe by ${recipe.author_name}`,
-      url: shareUrl,
-    };
+
+    // Try sharing canvas as image if supported
+    if (navigator.share && canvasRef.current) {
+      try {
+        const blob = await new Promise(resolve => canvasRef.current.toBlob(resolve, 'image/png'));
+        const file = new File([blob], `${recipe.title}_legacy_table.png`, { type: 'image/png' });
+        await navigator.share({
+          title: recipe.title,
+          text: `Check out "${recipe.title}" - A family recipe by ${recipe.author_name}`,
+          url: shareUrl,
+          files: [file],
+        });
+        return;
+      } catch (err) {
+        // If file sharing isn't supported, fall through to URL sharing
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: share URL or copy
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: recipe.title,
+          text: `Check out "${recipe.title}" - A family recipe by ${recipe.author_name}`,
+          url: shareUrl,
+        });
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error('Share failed:', err);
-        }
+        if (err.name !== 'AbortError') console.error('Share failed:', err);
       }
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
         toast.success('Recipe link copied to clipboard!');
-      } catch (err) {
-        toast.error('Failed to copy link');
-      }
+      } catch { toast.error('Failed to copy link'); }
     }
   };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Theme selector */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Theme</p>
+        <div className="flex gap-2 flex-wrap">
+          {SHARE_THEMES.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setThemeId(t.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                themeId === t.id
+                  ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                  : 'hover:ring-1 hover:ring-border'
+              }`}
+              style={{
+                background: `linear-gradient(135deg, ${t.gradient[0][0]}, ${t.gradient[2][0]})`,
+                color: t.textColor,
+              }}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Format selector */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Format</p>
+        <div className="flex gap-2">
+          {SHARE_FORMATS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFormatId(f.id)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
+                formatId === f.id
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/50'
+              }`}
+            >
+              {f.name} <span className="text-xs opacity-60">({f.label})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Canvas preview */}
       <div className="flex justify-center">
         <canvas
           ref={canvasRef}
           className="rounded-2xl shadow-lg max-w-full border-4 border-primary/20"
-          style={{ maxHeight: '600px', width: 'auto' }}
+          style={{ maxHeight: formatId === 'story' ? '700px' : '500px', width: 'auto' }}
         />
       </div>
-      <div className="flex gap-4 justify-center flex-wrap">
+
+      {/* Actions */}
+      <div className="flex gap-3 justify-center flex-wrap">
         <Button
           onClick={handleDownloadImage}
-          className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 px-6 py-6"
+          className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 px-6 py-5"
         >
-          <Download className="w-5 h-5" />
-          Download Image
+          <Download className="w-4 h-4" />
+          Download
         </Button>
         <Button
           onClick={handleShare}
           variant="outline"
-          className="rounded-full border-2 border-primary text-primary hover:bg-primary/5 flex items-center gap-2 px-6 py-6"
+          className="rounded-full border-2 border-primary text-primary hover:bg-primary/5 flex items-center gap-2 px-6 py-5"
         >
-          <Share2 className="w-5 h-5" />
-          Share Recipe
+          <Share2 className="w-4 h-4" />
+          Share
         </Button>
       </div>
-      <div className="p-4 rounded-xl bg-muted/50 border border-border/50 text-center">
-        <p className="text-sm text-muted-foreground">Share this link:</p>
-        <p className="font-mono text-sm mt-2 break-all text-foreground">
+
+      {/* Link */}
+      <div className="p-3 rounded-xl bg-muted/50 border border-border/50 text-center">
+        <p className="text-xs text-muted-foreground">Recipe link</p>
+        <p className="font-mono text-xs mt-1 break-all text-foreground">
           legacytable.app/recipes/{recipe.id}
         </p>
       </div>
@@ -1989,7 +2277,7 @@ const ShareRecipeModal = ({ recipe, isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-background rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-scale-up shadow-2xl">
-        <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex items-center justify-between z-10">
           <h2 className="font-serif text-2xl font-bold text-foreground">Share Recipe</h2>
           <button
             onClick={onClose}
@@ -2002,11 +2290,11 @@ const ShareRecipeModal = ({ recipe, isOpen, onClose }) => {
         <div className="p-6">
           <ShareRecipeCard recipe={recipe} />
         </div>
-        <div className="border-t border-border/50 p-6 flex justify-end">
+        <div className="border-t border-border/50 p-4 flex justify-end">
           <Button
             onClick={onClose}
             variant="outline"
-            className="rounded-full px-8 py-6"
+            className="rounded-full px-6 py-5"
           >
             Close
           </Button>
