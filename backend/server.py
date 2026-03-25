@@ -1872,6 +1872,117 @@ async def use_credits(body: UseCreditsRequest, user: dict = Depends(get_current_
     )
 
 
+# ---- Backup & Export ----
+
+@api_router.get("/export/recipes")
+async def export_recipes(user: dict = Depends(get_current_user)):
+    """
+    Export all of the user's family recipes as a JSON backup.
+    Includes recipe data, comments count, and family info.
+    Strips base64 photo data to keep the export manageable.
+    """
+    family_id = user.get("family_id")
+    if not family_id:
+        raise HTTPException(status_code=400, detail="You need to be in a family to export recipes")
+
+    family = await db.families.find_one({"id": family_id}, {"_id": 0})
+    recipes_cursor = db.recipes.find({"family_id": family_id}, {"_id": 0})
+    recipes = await recipes_cursor.to_list(length=1000)
+
+    # Strip heavy base64 photo data, keep count
+    for r in recipes:
+        photo_count = len(r.get("photos", []))
+        r["photo_count"] = photo_count
+        r["photos"] = []  # Clear base64 data from export
+
+    export_data = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": {
+            "id": user["id"],
+            "name": user.get("name"),
+            "email": user.get("email"),
+        },
+        "family": {
+            "id": family_id,
+            "name": family.get("name") if family else None,
+        },
+        "recipe_count": len(recipes),
+        "recipes": recipes,
+        "app_version": "1.0.4",
+        "format_version": "1.0",
+    }
+
+    logger.info("Exported %d recipes for user=%s family=%s", len(recipes), user["id"], family_id)
+    return export_data
+
+
+# ---- Founder Badge ----
+
+# Users who signed up before this date get a Founder badge
+FOUNDER_CUTOFF = "2026-06-01T00:00:00+00:00"
+
+
+@api_router.get("/badges")
+async def get_badges(user: dict = Depends(get_current_user)):
+    """Return badges the user has earned."""
+    badges = []
+
+    # Founder badge — signed up before cutoff
+    created_at = user.get("created_at", "")
+    try:
+        if created_at and created_at < FOUNDER_CUTOFF:
+            badges.append({
+                "id": "founder",
+                "name": "Founding Family",
+                "description": "Joined Legacy Table in its earliest days",
+                "icon": "flame",
+                "color": "#D97706",
+            })
+    except (TypeError, ValueError):
+        pass
+
+    # Recipe milestones
+    family_id = user.get("family_id")
+    if family_id:
+        recipe_count = await db.recipes.count_documents({"family_id": family_id, "author_id": user["id"]})
+        if recipe_count >= 1:
+            badges.append({
+                "id": "first_recipe",
+                "name": "First Dish",
+                "description": "Added your first family recipe",
+                "icon": "chef-hat",
+                "color": "#059669",
+            })
+        if recipe_count >= 10:
+            badges.append({
+                "id": "recipe_collector",
+                "name": "Recipe Collector",
+                "description": "Added 10 family recipes",
+                "icon": "book-open",
+                "color": "#7C3AED",
+            })
+        if recipe_count >= 50:
+            badges.append({
+                "id": "legacy_keeper",
+                "name": "Legacy Keeper",
+                "description": "Added 50 family recipes",
+                "icon": "crown",
+                "color": "#DC2626",
+            })
+
+    # Family keeper badge
+    if user.get("role") == "keeper":
+        badges.append({
+            "id": "family_keeper",
+            "name": "Family Keeper",
+            "description": "You manage your family's recipe collection",
+            "icon": "users",
+            "color": "#2563EB",
+        })
+
+    return {"badges": badges}
+
+
 @api_router.get("/")
 async def root():
     return {"message": "Honor Touré Family Recipe API"}

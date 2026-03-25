@@ -3666,7 +3666,56 @@ const SettingsPage = () => {
   const [nickname, setNickname] = useState(user?.nickname || "");
   const [avatar, setAvatar] = useState(user?.avatar || "");
   const [saving, setSaving] = useState(false);
+  const [badges, setBadges] = useState([]);
+  const [badgesLoading, setBadgesLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const navigate = useNavigate();
+
+  // Fetch badges
+  useEffect(() => {
+    const fetchBadges = async () => {
+      try {
+        const res = await axios.get(`${API}/badges`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setBadges(res.data.badges || []);
+      } catch { setBadges([]); }
+      setBadgesLoading(false);
+    };
+    if (token) fetchBadges();
+  }, [token]);
+
+  // Export recipes as JSON backup
+  const handleExportRecipes = async () => {
+    setExporting(true);
+    try {
+      const res = await axios.get(`${API}/export/recipes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const familyName = res.data.family?.name?.replace(/\s+/g, '_') || 'recipes';
+      link.download = `legacy_table_${familyName}_backup_${new Date().toISOString().slice(0,10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${res.data.recipe_count} recipes!`);
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Failed to export recipes";
+      toast.error(msg);
+    }
+    setExporting(false);
+  };
+
+  // Badge icon mapping
+  const badgeIcons = {
+    'flame': Flame,
+    'chef-hat': ChefHat,
+    'book-open': BookOpen,
+    'crown': Crown,
+    'users': Users,
+  };
 
   const handleAvatarUpload = (e) => {
     const file = e.target.files[0];
@@ -3866,17 +3915,78 @@ const SettingsPage = () => {
             </CardContent>
           </Card>
 
+          {/* Badges */}
+          <Card className="rounded-2xl border-border/50">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-500" />
+                Badges
+              </h3>
+              {badgesLoading ? (
+                <p className="text-sm text-muted-foreground">Loading badges...</p>
+              ) : badges.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keep adding recipes to earn badges!</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {badges.map(badge => {
+                    const IconComponent = badgeIcons[badge.icon] || Flame;
+                    return (
+                      <div
+                        key={badge.id}
+                        className="flex flex-col items-center text-center p-4 rounded-xl border border-border/50 bg-muted/30"
+                      >
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                          style={{ backgroundColor: badge.color + '20' }}
+                        >
+                          <IconComponent className="w-6 h-6" style={{ color: badge.color }} />
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">{badge.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{badge.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Backup & Export */}
+          <Card className="rounded-2xl border-border/50">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <Download className="w-5 h-5 text-primary" />
+                Backup & Export
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Download all your family's recipes as a JSON file. This backup includes every recipe's ingredients, instructions, and stories.
+              </p>
+              <Button
+                onClick={handleExportRecipes}
+                disabled={exporting || !user?.family_id}
+                variant="outline"
+                className="rounded-full"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {exporting ? "Exporting..." : "Download Recipe Backup"}
+              </Button>
+              {!user?.family_id && (
+                <p className="text-xs text-muted-foreground mt-2">Join a family first to export recipes.</p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Save Button */}
           <div className="flex gap-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate(-1)}
               className="rounded-full px-6"
               data-testid="settings-cancel-btn"
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSave}
               disabled={saving}
               className="rounded-full bg-primary text-primary-foreground px-8"
