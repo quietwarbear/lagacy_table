@@ -378,6 +378,7 @@ class RecipeResponse(BaseModel):
     author_id: str
     author_name: str
     created_at: str
+    holiday_tags: List[str] = []
 
 # Comment Models
 class CommentCreate(BaseModel):
@@ -1981,6 +1982,196 @@ async def get_badges(user: dict = Depends(get_current_user)):
         })
 
     return {"badges": badges}
+
+
+# ===================== HOLIDAY HEADQUARTERS =====================
+
+# Comprehensive food-centric holiday calendar
+# Each holiday has: name, date (MM-DD), season, emoji, description, suggested categories
+HOLIDAY_CALENDAR = [
+    # January
+    {"name": "New Year's Day", "month": 1, "day": 1, "season": "winter", "emoji": "🎆", "description": "Ring in the new year with family favorites", "suggested_categories": ["Appetizers", "Desserts", "Drinks"]},
+    {"name": "MLK Day", "month": 1, "day": 20, "season": "winter", "emoji": "✊🏿", "description": "Honor the legacy with soul food traditions", "suggested_categories": ["Soul Food", "Main Dishes", "Sides"]},
+    # February
+    {"name": "Super Bowl Sunday", "month": 2, "day": 9, "season": "winter", "emoji": "🏈", "description": "Game day spreads and finger foods", "suggested_categories": ["Appetizers", "Snacks", "Dips"]},
+    {"name": "Valentine's Day", "month": 2, "day": 14, "season": "winter", "emoji": "❤️", "description": "Cook something special for someone you love", "suggested_categories": ["Desserts", "Main Dishes", "Drinks"]},
+    {"name": "Black History Month", "month": 2, "day": 1, "season": "winter", "emoji": "✊🏿", "description": "Celebrate heritage recipes all month long", "suggested_categories": ["Soul Food", "Heritage", "Main Dishes"]},
+    # March
+    {"name": "St. Patrick's Day", "month": 3, "day": 17, "season": "spring", "emoji": "☘️", "description": "Lucky dishes and green-themed recipes", "suggested_categories": ["Main Dishes", "Soups", "Desserts"]},
+    # April
+    {"name": "Easter", "month": 4, "day": 5, "season": "spring", "emoji": "🐣", "description": "Easter brunch and spring celebration dishes", "suggested_categories": ["Brunch", "Desserts", "Main Dishes"]},
+    {"name": "Passover", "month": 4, "day": 12, "season": "spring", "emoji": "🕎", "description": "Traditional Seder dishes and matzo recipes", "suggested_categories": ["Main Dishes", "Sides", "Desserts"]},
+    # May
+    {"name": "Cinco de Mayo", "month": 5, "day": 5, "season": "spring", "emoji": "🇲🇽", "description": "Mexican-inspired family favorites", "suggested_categories": ["Main Dishes", "Appetizers", "Drinks"]},
+    {"name": "Mother's Day", "month": 5, "day": 11, "season": "spring", "emoji": "💐", "description": "Make Mom's favorite dish — or the one she always made for you", "suggested_categories": ["Brunch", "Desserts", "Main Dishes"]},
+    {"name": "Memorial Day", "month": 5, "day": 26, "season": "spring", "emoji": "🇺🇸", "description": "Kick off cookout season with the family", "suggested_categories": ["Grilling", "Sides", "Desserts"]},
+    # June
+    {"name": "Juneteenth", "month": 6, "day": 19, "season": "summer", "emoji": "✊🏿", "description": "Freedom celebration with red foods and heritage dishes", "suggested_categories": ["Soul Food", "Grilling", "Desserts"]},
+    {"name": "Father's Day", "month": 6, "day": 15, "season": "summer", "emoji": "👔", "description": "Dad's grill secrets and his favorite dishes", "suggested_categories": ["Grilling", "Main Dishes", "Desserts"]},
+    # July
+    {"name": "4th of July", "month": 7, "day": 4, "season": "summer", "emoji": "🎇", "description": "Cookouts, fireworks, and family recipes", "suggested_categories": ["Grilling", "Sides", "Desserts"]},
+    # August
+    {"name": "Back to School", "month": 8, "day": 15, "season": "summer", "emoji": "📚", "description": "Easy weeknight meals for busy families", "suggested_categories": ["Quick Meals", "Lunch", "Snacks"]},
+    # September
+    {"name": "Labor Day", "month": 9, "day": 1, "season": "fall", "emoji": "🍔", "description": "Last cookout of summer", "suggested_categories": ["Grilling", "Sides", "Desserts"]},
+    # October
+    {"name": "Halloween", "month": 10, "day": 31, "season": "fall", "emoji": "🎃", "description": "Spooky treats and festive party food", "suggested_categories": ["Desserts", "Snacks", "Appetizers"]},
+    # November
+    {"name": "Thanksgiving", "month": 11, "day": 27, "season": "fall", "emoji": "🦃", "description": "The biggest food holiday — every family recipe matters", "suggested_categories": ["Main Dishes", "Sides", "Desserts"]},
+    # December
+    {"name": "Hanukkah", "month": 12, "day": 14, "season": "winter", "emoji": "🕎", "description": "Latkes, brisket, and family traditions", "suggested_categories": ["Main Dishes", "Sides", "Desserts"]},
+    {"name": "Christmas", "month": 12, "day": 25, "season": "winter", "emoji": "🎄", "description": "Christmas dinner and holiday baking", "suggested_categories": ["Main Dishes", "Desserts", "Baking"]},
+    {"name": "Kwanzaa", "month": 12, "day": 26, "season": "winter", "emoji": "🕯️", "description": "Seven days of heritage cooking and community", "suggested_categories": ["Soul Food", "Heritage", "Main Dishes"]},
+    {"name": "New Year's Eve", "month": 12, "day": 31, "season": "winter", "emoji": "🥂", "description": "End the year with your best dishes", "suggested_categories": ["Appetizers", "Main Dishes", "Drinks"]},
+]
+
+SEASON_THEMES = {
+    "spring": {"color": "#059669", "gradient": ["#D1FAE5", "#A7F3D0"], "label": "Spring Cooking"},
+    "summer": {"color": "#D97706", "gradient": ["#FEF3C7", "#FDE68A"], "label": "Summer Grilling"},
+    "fall": {"color": "#DC2626", "gradient": ["#FEE2E2", "#FECACA"], "label": "Fall Harvest"},
+    "winter": {"color": "#7C3AED", "gradient": ["#EDE9FE", "#DDD6FE"], "label": "Winter Warmth"},
+}
+
+
+def get_current_season() -> str:
+    """Return current season based on month."""
+    month = datetime.now(timezone.utc).month
+    if month in (3, 4, 5):
+        return "spring"
+    elif month in (6, 7, 8):
+        return "summer"
+    elif month in (9, 10, 11):
+        return "fall"
+    else:
+        return "winter"
+
+
+def get_upcoming_holidays(count: int = 5) -> list:
+    """Return the next N upcoming holidays from today."""
+    now = datetime.now(timezone.utc)
+    current_month = now.month
+    current_day = now.day
+
+    # Sort holidays by how soon they come after today
+    scored = []
+    for h in HOLIDAY_CALENDAR:
+        m, d = h["month"], h["day"]
+        # Days until this holiday (wrapping around year)
+        if (m, d) >= (current_month, current_day):
+            days_away = (datetime(now.year, m, d) - datetime(now.year, current_month, current_day)).days
+        else:
+            days_away = (datetime(now.year + 1, m, d) - datetime(now.year, current_month, current_day)).days
+        scored.append({**h, "days_away": days_away})
+
+    scored.sort(key=lambda x: x["days_away"])
+    return scored[:count]
+
+
+@api_router.get("/holidays")
+async def get_holidays(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get upcoming holidays and current season info for Holiday Headquarters."""
+    user = await get_current_user(credentials)
+
+    upcoming = get_upcoming_holidays(6)
+    season = get_current_season()
+    theme = SEASON_THEMES[season]
+
+    # Get user's holiday-tagged recipes count
+    family_id = user.get("family_id")
+    holiday_recipe_counts = {}
+    if family_id:
+        pipeline = [
+            {"$match": {"family_id": family_id, "holiday_tags": {"$exists": True, "$ne": []}}},
+            {"$unwind": "$holiday_tags"},
+            {"$group": {"_id": "$holiday_tags", "count": {"$sum": 1}}},
+        ]
+        async for doc in db.recipes.aggregate(pipeline):
+            holiday_recipe_counts[doc["_id"]] = doc["count"]
+
+    return {
+        "upcoming": upcoming,
+        "season": season,
+        "season_theme": theme,
+        "holiday_recipe_counts": holiday_recipe_counts,
+        "all_holidays": HOLIDAY_CALENDAR,
+    }
+
+
+@api_router.get("/holidays/{holiday_name}/recipes")
+async def get_holiday_recipes(holiday_name: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get all recipes tagged with a specific holiday."""
+    user = await get_current_user(credentials)
+    family_id = user.get("family_id")
+    if not family_id:
+        raise HTTPException(status_code=400, detail="Join a family first to see holiday recipes")
+
+    recipes = []
+    cursor = db.recipes.find({"family_id": family_id, "holiday_tags": holiday_name})
+    async for recipe in cursor:
+        recipe["id"] = recipe.pop("_id")
+        recipes.append(RecipeResponse(**recipe).model_dump())
+
+    return {"holiday": holiday_name, "recipes": recipes}
+
+
+@api_router.post("/recipes/{recipe_id}/holiday-tags")
+async def update_holiday_tags(recipe_id: str, request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Add or replace holiday tags on a recipe."""
+    user = await get_current_user(credentials)
+    body = await request.json()
+    tags = body.get("tags", [])
+
+    # Validate tags are real holiday names
+    valid_names = {h["name"] for h in HOLIDAY_CALENDAR}
+    invalid = [t for t in tags if t not in valid_names]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid holiday names: {invalid}")
+
+    recipe = await db.recipes.find_one({"_id": recipe_id})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Must be in same family
+    if recipe.get("family_id") != user.get("family_id"):
+        raise HTTPException(status_code=403, detail="You can only tag recipes in your family")
+
+    await db.recipes.update_one(
+        {"_id": recipe_id},
+        {"$set": {"holiday_tags": tags}}
+    )
+
+    return {"recipe_id": recipe_id, "holiday_tags": tags}
+
+
+@api_router.get("/holidays/season/{season_name}")
+async def get_season_recipes(season_name: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get recipes tagged with holidays in a specific season."""
+    if season_name not in SEASON_THEMES:
+        raise HTTPException(status_code=400, detail=f"Invalid season. Use: {list(SEASON_THEMES.keys())}")
+
+    user = await get_current_user(credentials)
+    family_id = user.get("family_id")
+    if not family_id:
+        raise HTTPException(status_code=400, detail="Join a family first")
+
+    # Get holiday names for this season
+    season_holidays = [h["name"] for h in HOLIDAY_CALENDAR if h["season"] == season_name]
+
+    recipes = []
+    cursor = db.recipes.find({
+        "family_id": family_id,
+        "holiday_tags": {"$in": season_holidays}
+    })
+    async for recipe in cursor:
+        recipe["id"] = recipe.pop("_id")
+        recipes.append(RecipeResponse(**recipe).model_dump())
+
+    return {
+        "season": season_name,
+        "theme": SEASON_THEMES[season_name],
+        "holidays": season_holidays,
+        "recipes": recipes,
+    }
 
 
 @api_router.get("/")

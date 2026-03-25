@@ -3,7 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Link, useParams } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import { ChefHat, Utensils, Camera, Clock, Users, Flame, Heart, Plus, LogOut, Menu, X, Home, User, Search, Download, BookOpen, Moon, Sun, Edit, MessageCircle, Trash2, Send, Bell, Settings, Upload, Copy, Crown, UserPlus, Sparkles, Share2, Volume2, VolumeX, SkipForward, SkipBack, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChefHat, Utensils, Camera, Clock, Users, Flame, Heart, Plus, LogOut, Menu, X, Home, User, Search, Download, BookOpen, Moon, Sun, Edit, MessageCircle, Trash2, Send, Bell, Settings, Upload, Copy, Crown, UserPlus, Sparkles, Share2, Volume2, VolumeX, SkipForward, SkipBack, ChevronLeft, ChevronRight, Calendar, Gift, Tag } from "lucide-react";
 import * as familiesApi from "./api/families";
 import jsPDF from "jspdf";
 import { Button } from "./components/ui/button";
@@ -846,6 +846,186 @@ const RecipeCard = ({ recipe, onClick }) => {
   );
 };
 
+// ===================== HOLIDAY HEADQUARTERS =====================
+
+const HolidayHeadquarters = () => {
+  const [holidays, setHolidays] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const [selectedHoliday, setSelectedHoliday] = useState(null);
+  const [holidayRecipes, setHolidayRecipes] = useState([]);
+  const [loadingRecipes, setLoadingRecipes] = useState(false);
+  const { token } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const res = await axios.get(`${API}/holidays`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setHolidays(res.data);
+      } catch (e) {
+        console.error("Failed to load holidays");
+      }
+    };
+    fetchHolidays();
+  }, [token]);
+
+  const loadHolidayRecipes = async (holidayName) => {
+    if (selectedHoliday === holidayName) {
+      setSelectedHoliday(null);
+      setHolidayRecipes([]);
+      return;
+    }
+    setSelectedHoliday(holidayName);
+    setLoadingRecipes(true);
+    try {
+      const res = await axios.get(`${API}/holidays/${encodeURIComponent(holidayName)}/recipes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setHolidayRecipes(res.data.recipes);
+    } catch (e) {
+      toast.error("Failed to load holiday recipes");
+    }
+    setLoadingRecipes(false);
+  };
+
+  if (!holidays) return null;
+
+  const { upcoming, season, season_theme, holiday_recipe_counts } = holidays;
+  const nextHoliday = upcoming[0];
+  const visibleHolidays = expanded ? upcoming : upcoming.slice(0, 3);
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Season Banner */}
+      <div
+        className="rounded-2xl p-6 mb-6 relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg, ${season_theme.gradient[0]}, ${season_theme.gradient[1]})` }}
+      >
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar className="w-5 h-5" style={{ color: season_theme.color }} />
+              <h2 className="font-serif text-xl font-bold" style={{ color: season_theme.color }}>
+                Holiday Headquarters
+              </h2>
+            </div>
+            <p className="text-sm text-foreground/70">
+              {season_theme.label} — {nextHoliday && (
+                <>Next up: <span className="font-semibold">{nextHoliday.emoji} {nextHoliday.name}</span> in {nextHoliday.days_away} day{nextHoliday.days_away !== 1 ? 's' : ''}</>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs px-3 py-1 rounded-full capitalize" style={{ borderColor: season_theme.color, color: season_theme.color }}>
+              {season}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Upcoming Holidays */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visibleHolidays.map((h) => {
+          const recipeCount = holiday_recipe_counts[h.name] || 0;
+          const isSelected = selectedHoliday === h.name;
+          return (
+            <Card
+              key={h.name}
+              className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'ring-2 ring-primary' : ''}`}
+              onClick={() => loadHolidayRecipes(h.name)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{h.emoji}</span>
+                    <div>
+                      <h3 className="font-serif font-semibold text-sm">{h.name}</h3>
+                      <p className="text-xs text-muted-foreground">{h.days_away} day{h.days_away !== 1 ? 's' : ''} away</p>
+                    </div>
+                  </div>
+                  {recipeCount > 0 && (
+                    <Badge className="text-xs rounded-full bg-primary/10 text-primary border-0">
+                      {recipeCount} recipe{recipeCount !== 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">{h.description}</p>
+                {h.suggested_categories && (
+                  <div className="flex gap-1 mt-2 flex-wrap">
+                    {h.suggested_categories.slice(0, 3).map(cat => (
+                      <span key={cat} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{cat}</span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {upcoming.length > 3 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-sm text-primary hover:underline mt-3 block mx-auto"
+        >
+          {expanded ? 'Show less' : `Show ${upcoming.length - 3} more holidays`}
+        </button>
+      )}
+
+      {/* Holiday Recipes Drawer */}
+      {selectedHoliday && (
+        <div className="mt-6 p-4 rounded-2xl border bg-card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-serif font-semibold">
+              {upcoming.find(h => h.name === selectedHoliday)?.emoji} {selectedHoliday} Recipes
+            </h3>
+            <button onClick={() => { setSelectedHoliday(null); setHolidayRecipes([]); }} className="text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {loadingRecipes ? (
+            <div className="flex gap-4">
+              {[1, 2, 3].map(i => <div key={i} className="skeleton h-24 w-full rounded-xl" />)}
+            </div>
+          ) : holidayRecipes.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {holidayRecipes.map(recipe => (
+                <Card
+                  key={recipe.id}
+                  className="cursor-pointer hover:shadow-md transition-all"
+                  onClick={() => navigate(`/recipe/${recipe.id}`)}
+                >
+                  <CardContent className="p-3 flex items-center gap-3">
+                    {recipe.photos?.[0] ? (
+                      <img src={recipe.photos[0]} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Utensils className="w-6 h-6 text-primary/50" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-serif font-semibold text-sm truncate">{recipe.title}</p>
+                      <p className="text-xs text-muted-foreground">by {recipe.author_name}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Gift className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground mb-3">No recipes tagged for {selectedHoliday} yet</p>
+              <p className="text-xs text-muted-foreground">Tag recipes from their detail page to build your holiday collection!</p>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
+
 // Home Page
 const HomePage = () => {
   const [recipes, setRecipes] = useState([]);
@@ -929,6 +1109,9 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+      {/* Holiday Headquarters */}
+      <HolidayHeadquarters />
 
       {/* Filters */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -2314,6 +2497,9 @@ const RecipeDetailPage = () => {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [holidayTags, setHolidayTags] = useState([]);
+  const [holidayPickerOpen, setHolidayPickerOpen] = useState(false);
+  const [savingTags, setSavingTags] = useState(false);
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
@@ -2329,6 +2515,7 @@ const RecipeDetailPage = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setRecipe(response.data);
+      setHolidayTags(response.data.holiday_tags || []);
       setAccessDenied(false);
     } catch (error) {
       if (error.response?.status === 403) {
@@ -2403,6 +2590,38 @@ const RecipeDetailPage = () => {
   };
 
   const canDeleteRecipe = recipe && (user?.id === recipe.author_id || user?.role === "keeper");
+
+  // Holiday tagging
+  const HOLIDAY_LIST = [
+    { name: "New Year's Day", emoji: "🎆" }, { name: "MLK Day", emoji: "✊🏿" },
+    { name: "Super Bowl Sunday", emoji: "🏈" }, { name: "Valentine's Day", emoji: "❤️" },
+    { name: "Black History Month", emoji: "✊🏿" }, { name: "St. Patrick's Day", emoji: "☘️" },
+    { name: "Easter", emoji: "🐣" }, { name: "Passover", emoji: "🕎" },
+    { name: "Cinco de Mayo", emoji: "🇲🇽" }, { name: "Mother's Day", emoji: "💐" },
+    { name: "Memorial Day", emoji: "🇺🇸" }, { name: "Juneteenth", emoji: "✊🏿" },
+    { name: "Father's Day", emoji: "👔" }, { name: "4th of July", emoji: "🎇" },
+    { name: "Back to School", emoji: "📚" }, { name: "Labor Day", emoji: "🍔" },
+    { name: "Halloween", emoji: "🎃" }, { name: "Thanksgiving", emoji: "🦃" },
+    { name: "Hanukkah", emoji: "🕎" }, { name: "Christmas", emoji: "🎄" },
+    { name: "Kwanzaa", emoji: "🕯️" }, { name: "New Year's Eve", emoji: "🥂" },
+  ];
+
+  const toggleHolidayTag = async (holidayName) => {
+    const newTags = holidayTags.includes(holidayName)
+      ? holidayTags.filter(t => t !== holidayName)
+      : [...holidayTags, holidayName];
+    setSavingTags(true);
+    try {
+      await axios.post(`${API}/recipes/${id}/holiday-tags`, { tags: newTags }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setHolidayTags(newTags);
+      toast.success(holidayTags.includes(holidayName) ? "Holiday tag removed" : "Holiday tag added!");
+    } catch (e) {
+      toast.error("Failed to update holiday tags");
+    }
+    setSavingTags(false);
+  };
 
   const getDifficultyClass = (difficulty) => {
     switch (difficulty?.toLowerCase()) {
@@ -2570,6 +2789,65 @@ const RecipeDetailPage = () => {
                 <p className="text-sm text-muted-foreground mt-4">— Shared by {recipe.author_name}</p>
               </div>
             )}
+
+            {/* Holiday Tags */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-serif text-lg font-semibold flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  Holiday Tags
+                </h3>
+                <button
+                  onClick={() => setHolidayPickerOpen(!holidayPickerOpen)}
+                  className="text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  <Tag className="w-3 h-3" />
+                  {holidayPickerOpen ? 'Done' : 'Edit tags'}
+                </button>
+              </div>
+
+              {/* Current tags */}
+              {holidayTags.length > 0 && (
+                <div className="flex gap-2 flex-wrap mb-3">
+                  {holidayTags.map(tag => {
+                    const h = HOLIDAY_LIST.find(x => x.name === tag);
+                    return (
+                      <Badge key={tag} className="text-xs rounded-full bg-primary/10 text-primary border-0 px-3 py-1">
+                        {h?.emoji} {tag}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+
+              {holidayTags.length === 0 && !holidayPickerOpen && (
+                <p className="text-sm text-muted-foreground">No holiday tags yet. Tag this recipe to include it in holiday collections!</p>
+              )}
+
+              {/* Holiday picker */}
+              {holidayPickerOpen && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-4 rounded-xl border bg-card">
+                  {HOLIDAY_LIST.map(h => {
+                    const isTagged = holidayTags.includes(h.name);
+                    return (
+                      <button
+                        key={h.name}
+                        onClick={() => toggleHolidayTag(h.name)}
+                        disabled={savingTags}
+                        className={`text-left text-xs p-2 rounded-lg border transition-all flex items-center gap-2 ${
+                          isTagged
+                            ? 'bg-primary/10 border-primary text-primary font-medium'
+                            : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
+                        } ${savingTags ? 'opacity-50' : ''}`}
+                      >
+                        <span>{h.emoji}</span>
+                        <span className="truncate">{h.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sidebar */}
