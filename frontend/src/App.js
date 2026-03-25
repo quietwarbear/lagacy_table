@@ -3,7 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Link, useParams } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import { ChefHat, Utensils, Camera, Clock, Users, Flame, Heart, Plus, LogOut, Menu, X, Home, User, Search, Download, BookOpen, Moon, Sun, Edit, MessageCircle, Trash2, Send, Bell, Settings, Upload, Copy, Crown, UserPlus, Sparkles, Share2, Volume2, VolumeX, SkipForward, SkipBack, ChevronLeft, ChevronRight, Calendar, Gift, Tag } from "lucide-react";
+import { ChefHat, Utensils, Camera, Clock, Users, Flame, Heart, Plus, LogOut, Menu, X, Home, User, Search, Download, BookOpen, Moon, Sun, Edit, MessageCircle, Trash2, Send, Bell, Settings, Upload, Copy, Crown, UserPlus, Sparkles, Share2, Volume2, VolumeX, SkipForward, SkipBack, ChevronLeft, ChevronRight, Calendar, Gift, Tag, Link2, Video } from "lucide-react";
 import * as familiesApi from "./api/families";
 import jsPDF from "jspdf";
 import { Button } from "./components/ui/button";
@@ -1105,6 +1105,30 @@ const HomePage = () => {
                 <BookOpen className="w-5 h-5 mr-2" />
                 Family Cookbook
               </Button>
+            </div>
+            {/* AI Quick Actions */}
+            <div className="flex flex-wrap gap-3 justify-center mt-6">
+              <button
+                onClick={() => navigate("/scan-recipe")}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-background/80 backdrop-blur border border-border/50 text-sm text-foreground hover:border-primary/50 hover:bg-primary/5 transition-all"
+              >
+                <Camera className="w-4 h-4 text-primary" />
+                Scan a Recipe
+              </button>
+              <button
+                onClick={() => navigate("/voice-recipe")}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-background/80 backdrop-blur border border-border/50 text-sm text-foreground hover:border-amber-500/50 hover:bg-amber-500/5 transition-all"
+              >
+                <Volume2 className="w-4 h-4 text-amber-600" />
+                Voice a Recipe
+              </button>
+              <button
+                onClick={() => navigate("/save-from-link")}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-background/80 backdrop-blur border border-border/50 text-sm text-foreground hover:border-pink-500/50 hover:bg-pink-500/5 transition-all"
+              >
+                <Link2 className="w-4 h-4 text-pink-600" />
+                Save from Link
+              </button>
             </div>
           </div>
         </div>
@@ -2899,6 +2923,9 @@ const RecipeDetailPage = () => {
                 </ul>
               </CardContent>
             </Card>
+
+            {/* Legacy Clips */}
+            <LegacyClipsSection recipeId={recipe.id} />
           </div>
         </div>
 
@@ -2972,6 +2999,925 @@ const RecipeDetailPage = () => {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ===================== LEGACY CLIPS (Milestone 3.3) =====================
+
+const LegacyClipsSection = ({ recipeId }) => {
+  const [clips, setClips] = useState([]);
+  const [recording, setRecording] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [playingClip, setPlayingClip] = useState(null);
+  const [playingVideo, setPlayingVideo] = useState(null);
+  const [caption, setCaption] = useState("");
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [videoBlob, setVideoBlob] = useState(null);
+  const [videoPreview, setVideoPreview] = useState(null);
+  const mediaRecorderRef = React.useRef(null);
+  const chunksRef = React.useRef([]);
+  const timerRef = React.useRef(null);
+  const videoInputRef = React.useRef(null);
+  const { token, user } = useAuth();
+
+  useEffect(() => {
+    fetchClips();
+  }, [recipeId]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  const fetchClips = async () => {
+    try {
+      const res = await axios.get(`${API}/recipes/${recipeId}/clips`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setClips(res.data.clips);
+    } catch (e) {
+      console.error("Failed to load clips");
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: true,
+      });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        setVideoBlob(blob);
+        setVideoPreview(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(t => {
+          if (t >= 29) {
+            stopRecording();
+            return 30;
+          }
+          return t + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      toast.error("Could not access camera/microphone");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setRecording(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("Video too large. Please use clips under 30 seconds.");
+      return;
+    }
+    setVideoBlob(file);
+    setVideoPreview(URL.createObjectURL(file));
+  };
+
+  const handleUpload = async () => {
+    if (!videoBlob) return;
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise((resolve) => {
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(videoBlob);
+      });
+
+      await axios.post(`${API}/recipes/${recipeId}/clips`, {
+        video: base64,
+        caption: caption.trim(),
+        duration: recordingTime || 0,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 120000,
+      });
+
+      toast.success("Legacy clip added!");
+      setVideoBlob(null);
+      setVideoPreview(null);
+      setCaption("");
+      setRecordingTime(0);
+      fetchClips();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Failed to upload clip");
+    }
+    setUploading(false);
+  };
+
+  const handlePlayClip = async (clipId) => {
+    if (playingClip === clipId) {
+      setPlayingClip(null);
+      setPlayingVideo(null);
+      return;
+    }
+    try {
+      const res = await axios.get(`${API}/recipes/${recipeId}/clips/${clipId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPlayingClip(clipId);
+      setPlayingVideo(res.data.clip.video);
+    } catch (e) {
+      toast.error("Failed to load clip");
+    }
+  };
+
+  const handleDeleteClip = async (clipId) => {
+    if (!window.confirm("Delete this legacy clip?")) return;
+    try {
+      await axios.delete(`${API}/recipes/${recipeId}/clips/${clipId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setClips(clips.filter(c => c.id !== clipId));
+      if (playingClip === clipId) {
+        setPlayingClip(null);
+        setPlayingVideo(null);
+      }
+      toast.success("Clip deleted");
+    } catch (e) {
+      toast.error("Failed to delete clip");
+    }
+  };
+
+  return (
+    <Card className="rounded-2xl border-border/50">
+      <CardContent className="p-6">
+        <h3 className="font-serif text-lg font-semibold mb-3 flex items-center gap-2">
+          <Video className="w-5 h-5 text-primary" />
+          Legacy Clips
+        </h3>
+
+        {/* Existing clips */}
+        {clips.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {clips.map(clip => (
+              <div key={clip.id} className="flex items-center gap-3 p-2 rounded-xl bg-muted/50">
+                <button
+                  onClick={() => handlePlayClip(clip.id)}
+                  className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"
+                >
+                  <Video className="w-5 h-5 text-primary" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{clip.caption || "Legacy clip"}</p>
+                  <p className="text-xs text-muted-foreground">by {clip.author_name} · {clip.duration}s</p>
+                </div>
+                {(clip.author_id === user?.id || user?.role === "keeper") && (
+                  <button onClick={() => handleDeleteClip(clip.id)} className="text-muted-foreground hover:text-red-500">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Video player */}
+        {playingVideo && (
+          <div className="mb-4 rounded-xl overflow-hidden bg-black">
+            <video src={playingVideo} controls autoPlay className="w-full max-h-64" />
+          </div>
+        )}
+
+        {/* Record / upload */}
+        {!videoBlob ? (
+          <div className="flex gap-2">
+            <Button onClick={recording ? stopRecording : startRecording} size="sm" variant={recording ? "destructive" : "outline"} className="rounded-full text-xs flex-1">
+              {recording ? (
+                <><X className="w-3 h-3 mr-1" /> Stop ({30 - recordingTime}s)</>
+              ) : (
+                <><Video className="w-3 h-3 mr-1" /> Record Clip</>
+              )}
+            </Button>
+            <label>
+              <Button size="sm" variant="outline" className="rounded-full text-xs" asChild>
+                <span><Upload className="w-3 h-3 mr-1" /> Upload</span>
+              </Button>
+              <input ref={videoInputRef} type="file" accept="video/*" onChange={handleFileSelect} className="hidden" />
+            </label>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <video src={videoPreview} controls className="w-full rounded-xl max-h-48" />
+            <Input
+              placeholder="Add a caption..."
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              className="text-sm rounded-full"
+              maxLength={200}
+            />
+            <div className="flex gap-2">
+              <Button onClick={handleUpload} disabled={uploading} size="sm" className="rounded-full bg-primary flex-1 text-xs">
+                {uploading ? "Uploading..." : "Save Clip"}
+              </Button>
+              <Button onClick={() => { setVideoBlob(null); setVideoPreview(null); }} size="sm" variant="outline" className="rounded-full text-xs">
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {clips.length === 0 && !videoBlob && !recording && (
+          <p className="text-xs text-muted-foreground mt-2">Record a short memory — share the story behind this dish!</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+
+// ===================== AI RECIPE SCANNER (Milestone 2.1) =====================
+
+const ScanRecipePage = () => {
+  const [image, setImage] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const { token } = useAuth();
+  const { hasCredits, credits } = useSubscription();
+  const navigate = useNavigate();
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setImage(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch (err) {
+      toast.error("Could not access camera");
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext("2d").drawImage(videoRef.current, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    setImage(dataUrl);
+    stopCamera();
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  const handleScan = async () => {
+    if (!image) return;
+    setScanning(true);
+    try {
+      const res = await axios.post(`${API}/ai/scan-recipe`, { image }, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 60000,
+      });
+      setResult(res.data.recipe);
+      toast.success("Recipe extracted!");
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === "object" && detail.error === "insufficient_credits") {
+        toast.error(detail.message);
+      } else {
+        toast.error(typeof detail === "string" ? detail : "Failed to scan recipe. Try a clearer photo.");
+      }
+    }
+    setScanning(false);
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!result) return;
+    try {
+      const payload = {
+        title: result.title,
+        ingredients: result.ingredients,
+        instructions: result.instructions,
+        cooking_time: result.cooking_time || 30,
+        servings: result.servings || 4,
+        category: result.category || "Main Course",
+        difficulty: result.difficulty || "easy",
+        story: result.story || "",
+        photos: image ? [image] : [],
+      };
+      const res = await axios.post(`${API}/recipes`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success("Recipe saved to your collection!");
+      navigate(`/recipe/${res.data.id}`);
+    } catch (err) {
+      toast.error("Failed to save recipe");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
+          <ChevronLeft className="w-4 h-4" /> Back
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Camera className="w-8 h-8 text-primary" />
+          </div>
+          <h1 className="font-serif text-3xl font-bold mb-2">Scan a Recipe</h1>
+          <p className="text-muted-foreground">Take a photo of a handwritten or printed recipe and AI will digitize it</p>
+          {credits && (
+            <p className="text-xs text-muted-foreground mt-2">Uses 1 credit · {credits.balance} remaining</p>
+          )}
+        </div>
+
+        {!result ? (
+          <>
+            {/* Image capture */}
+            {!image ? (
+              <div className="space-y-4">
+                {cameraActive ? (
+                  <div className="relative rounded-2xl overflow-hidden bg-black">
+                    <video ref={videoRef} className="w-full" autoPlay playsInline muted />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+                      <Button onClick={capturePhoto} className="rounded-full bg-white text-black hover:bg-gray-100 px-6">
+                        <Camera className="w-5 h-5 mr-2" /> Capture
+                      </Button>
+                      <Button onClick={stopCamera} variant="outline" className="rounded-full border-white text-white hover:bg-white/20">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-border rounded-2xl p-12 text-center">
+                    <Camera className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Button onClick={startCamera} className="rounded-full bg-primary">
+                        <Camera className="w-4 h-4 mr-2" /> Take Photo
+                      </Button>
+                      <label>
+                        <Button variant="outline" className="rounded-full" asChild>
+                          <span><Upload className="w-4 h-4 mr-2" /> Upload Photo</span>
+                        </Button>
+                        <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl overflow-hidden border">
+                  <img src={image} alt="Recipe to scan" className="w-full max-h-96 object-contain bg-muted" />
+                </div>
+                <div className="flex gap-3 justify-center">
+                  <Button onClick={handleScan} disabled={scanning || !hasCredits(1)} className="rounded-full bg-primary px-8">
+                    {scanning ? (
+                      <><span className="animate-spin mr-2">⏳</span> Scanning...</>
+                    ) : (
+                      <><Sparkles className="w-4 h-4 mr-2" /> Scan Recipe</>
+                    )}
+                  </Button>
+                  <Button onClick={() => setImage(null)} variant="outline" className="rounded-full">
+                    Retake
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Scanned result */
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="font-serif text-2xl font-bold mb-1">{result.title}</h2>
+                <div className="flex gap-3 text-sm text-muted-foreground mb-4">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {result.cooking_time} min</span>
+                  <span>{result.servings} servings</span>
+                  <Badge variant="outline" className="text-xs">{result.category}</Badge>
+                  <span className={`difficulty-badge difficulty-${result.difficulty}`}>{result.difficulty}</span>
+                </div>
+
+                <h3 className="font-semibold mb-2">Ingredients</h3>
+                <ul className="space-y-1 mb-4">
+                  {result.ingredients.map((ing, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span> {ing}
+                    </li>
+                  ))}
+                </ul>
+
+                <h3 className="font-semibold mb-2">Instructions</h3>
+                <p className="text-sm whitespace-pre-line text-muted-foreground">{result.instructions}</p>
+
+                {result.story && (
+                  <div className="mt-4 p-4 rounded-xl bg-primary/5">
+                    <h3 className="font-semibold mb-1 flex items-center gap-1">
+                      <Heart className="w-4 h-4 text-primary" /> Story
+                    </h3>
+                    <p className="text-sm italic text-muted-foreground">{result.story}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-3 justify-center">
+              <Button onClick={handleSaveRecipe} className="rounded-full bg-primary px-8">
+                <Plus className="w-4 h-4 mr-2" /> Save to Collection
+              </Button>
+              <Button onClick={() => { setResult(null); setImage(null); }} variant="outline" className="rounded-full">
+                Scan Another
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// ===================== VOICE-TO-RECIPE (Milestone 2.2) =====================
+
+const VoiceRecipePage = () => {
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState(null);
+  const [transcription, setTranscription] = useState(null);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = React.useRef(null);
+  const chunksRef = React.useRef([]);
+  const timerRef = React.useRef(null);
+  const { token } = useAuth();
+  const { hasCredits, credits } = useSubscription();
+  const navigate = useNavigate();
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(t => t.stop());
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch (err) {
+      toast.error("Could not access microphone");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setRecording(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  const handleProcess = async () => {
+    if (!audioBlob) return;
+    setProcessing(true);
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      const base64 = await new Promise((resolve) => {
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.readAsDataURL(audioBlob);
+      });
+
+      const res = await axios.post(`${API}/ai/voice-to-recipe`, {
+        audio: base64,
+        format: "webm",
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 120000,
+      });
+
+      setResult(res.data.recipe);
+      setTranscription(res.data.transcription);
+      toast.success("Recipe extracted from voice!");
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === "object" && detail.error === "insufficient_credits") {
+        toast.error(detail.message);
+      } else {
+        toast.error(typeof detail === "string" ? detail : "Failed to process audio. Try speaking more clearly.");
+      }
+    }
+    setProcessing(false);
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!result) return;
+    try {
+      const payload = {
+        title: result.title,
+        ingredients: result.ingredients,
+        instructions: result.instructions,
+        cooking_time: result.cooking_time || 30,
+        servings: result.servings || 4,
+        category: result.category || "Main Course",
+        difficulty: result.difficulty || "easy",
+        story: result.story || "",
+        photos: [],
+      };
+      const res = await axios.post(`${API}/recipes`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success("Recipe saved to your collection!");
+      navigate(`/recipe/${res.data.id}`);
+    } catch (err) {
+      toast.error("Failed to save recipe");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
+          <ChevronLeft className="w-4 h-4" /> Back
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+            <Volume2 className="w-8 h-8 text-amber-600" />
+          </div>
+          <h1 className="font-serif text-3xl font-bold mb-2">Voice a Recipe</h1>
+          <p className="text-muted-foreground">Speak a recipe out loud and AI will transcribe and structure it</p>
+          {credits && (
+            <p className="text-xs text-muted-foreground mt-2">Uses 2 credits · {credits.balance} remaining</p>
+          )}
+        </div>
+
+        {!result ? (
+          <div className="space-y-6">
+            {/* Recording UI */}
+            <div className="text-center">
+              {!audioBlob ? (
+                <div className="space-y-4">
+                  <div className={`w-32 h-32 rounded-full mx-auto flex items-center justify-center transition-all ${
+                    recording ? 'bg-red-500 animate-pulse shadow-lg shadow-red-500/30' : 'bg-muted hover:bg-muted/80'
+                  }`}>
+                    {recording ? (
+                      <button onClick={stopRecording} className="text-white">
+                        <X className="w-12 h-12" />
+                      </button>
+                    ) : (
+                      <button onClick={startRecording} className="text-muted-foreground">
+                        <Volume2 className="w-12 h-12" />
+                      </button>
+                    )}
+                  </div>
+
+                  {recording ? (
+                    <div>
+                      <p className="text-lg font-mono text-red-500">{formatTime(recordingTime)}</p>
+                      <p className="text-sm text-muted-foreground">Recording... Tap the button to stop</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Tap to start recording your recipe</p>
+                  )}
+
+                  <div className="p-4 rounded-xl bg-muted/50 text-left max-w-md mx-auto">
+                    <p className="text-sm font-semibold mb-2">Tips for best results:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      <li>• Start with the recipe name</li>
+                      <li>• List ingredients with quantities</li>
+                      <li>• Describe steps in order</li>
+                      <li>• Share any family stories — we'll capture those too!</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="w-32 h-32 rounded-full mx-auto flex items-center justify-center bg-green-500/10">
+                    <Volume2 className="w-12 h-12 text-green-600" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Recording captured — {formatTime(recordingTime)}</p>
+                  <div className="flex gap-3 justify-center">
+                    <Button onClick={handleProcess} disabled={processing || !hasCredits(2)} className="rounded-full bg-primary px-8">
+                      {processing ? (
+                        <><span className="animate-spin mr-2">⏳</span> Processing...</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4 mr-2" /> Extract Recipe</>
+                      )}
+                    </Button>
+                    <Button onClick={() => { setAudioBlob(null); setRecordingTime(0); }} variant="outline" className="rounded-full">
+                      Re-record
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Voice result */
+          <div className="space-y-6">
+            {/* Transcription */}
+            {transcription && (
+              <div className="p-4 rounded-xl bg-muted/50">
+                <h3 className="text-sm font-semibold mb-1">What we heard:</h3>
+                <p className="text-xs text-muted-foreground italic">"{transcription.length > 200 ? transcription.slice(0, 200) + "..." : transcription}"</p>
+              </div>
+            )}
+
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="font-serif text-2xl font-bold mb-1">{result.title}</h2>
+                <div className="flex gap-3 text-sm text-muted-foreground mb-4">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {result.cooking_time} min</span>
+                  <span>{result.servings} servings</span>
+                  <Badge variant="outline" className="text-xs">{result.category}</Badge>
+                </div>
+
+                <h3 className="font-semibold mb-2">Ingredients</h3>
+                <ul className="space-y-1 mb-4">
+                  {result.ingredients.map((ing, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span> {ing}
+                    </li>
+                  ))}
+                </ul>
+
+                <h3 className="font-semibold mb-2">Instructions</h3>
+                <p className="text-sm whitespace-pre-line text-muted-foreground">{result.instructions}</p>
+
+                {result.story && (
+                  <div className="mt-4 p-4 rounded-xl bg-primary/5">
+                    <h3 className="font-semibold mb-1 flex items-center gap-1">
+                      <Heart className="w-4 h-4 text-primary" /> Story
+                    </h3>
+                    <p className="text-sm italic text-muted-foreground">{result.story}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-3 justify-center">
+              <Button onClick={handleSaveRecipe} className="rounded-full bg-primary px-8">
+                <Plus className="w-4 h-4 mr-2" /> Save to Collection
+              </Button>
+              <Button onClick={() => { setResult(null); setTranscription(null); setAudioBlob(null); setRecordingTime(0); }} variant="outline" className="rounded-full">
+                Record Another
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// ===================== SAVE FROM LINK (Milestone 3.2) =====================
+
+const SaveFromLinkPage = () => {
+  const [url, setUrl] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState(null);
+  const [metadata, setMetadata] = useState(null);
+  const { token } = useAuth();
+  const { hasCredits, credits } = useSubscription();
+  const navigate = useNavigate();
+
+  const handleExtract = async () => {
+    if (!url.trim()) return;
+    setProcessing(true);
+    try {
+      const res = await axios.post(`${API}/ai/save-from-link`, { url: url.trim() }, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 60000,
+      });
+      setResult(res.data.recipe);
+      setMetadata(res.data.metadata);
+      toast.success("Recipe extracted from link!");
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === "object" && detail.error === "insufficient_credits") {
+        toast.error(detail.message);
+      } else {
+        toast.error(typeof detail === "string" ? detail : "Failed to extract recipe from this link.");
+      }
+    }
+    setProcessing(false);
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!result) return;
+    try {
+      const story = [result.story, result.source_url ? `Source: ${result.source_url}` : ""].filter(Boolean).join("\n\n");
+      const payload = {
+        title: result.title,
+        ingredients: result.ingredients,
+        instructions: result.instructions,
+        cooking_time: result.cooking_time || 30,
+        servings: result.servings || 4,
+        category: result.category || "Main Course",
+        difficulty: result.difficulty || "easy",
+        story,
+        photos: [],
+      };
+      const res = await axios.post(`${API}/recipes`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success("Recipe saved to your collection!");
+      navigate(`/recipe/${res.data.id}`);
+    } catch (err) {
+      toast.error("Failed to save recipe");
+    }
+  };
+
+  const isPasteableUrl = (text) => /^https?:\/\/.+/.test(text.trim());
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
+          <ChevronLeft className="w-4 h-4" /> Back
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-pink-500/10 flex items-center justify-center mx-auto mb-4">
+            <Link2 className="w-8 h-8 text-pink-600" />
+          </div>
+          <h1 className="font-serif text-3xl font-bold mb-2">Save from Link</h1>
+          <p className="text-muted-foreground">Paste a TikTok, Instagram, or YouTube cooking video link</p>
+          {credits && (
+            <p className="text-xs text-muted-foreground mt-2">Uses 1 credit · {credits.balance} remaining</p>
+          )}
+        </div>
+
+        {!result ? (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Input
+                placeholder="https://www.tiktok.com/@chef/video/..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="text-center rounded-full border-2 py-6 text-base"
+              />
+              <Button
+                onClick={handleExtract}
+                disabled={processing || !isPasteableUrl(url) || !hasCredits(1)}
+                className="rounded-full bg-primary px-8 w-full sm:w-auto mx-auto block"
+              >
+                {processing ? (
+                  <><span className="animate-spin mr-2">⏳</span> Extracting...</>
+                ) : (
+                  <><Sparkles className="w-4 h-4 mr-2" /> Extract Recipe</>
+                )}
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
+              {[
+                { name: "TikTok", color: "text-foreground", icon: "🎵" },
+                { name: "Instagram", color: "text-pink-500", icon: "📸" },
+                { name: "YouTube", color: "text-red-500", icon: "▶️" },
+              ].map(p => (
+                <div key={p.name} className="text-center p-3 rounded-xl bg-muted/50">
+                  <span className="text-xl">{p.icon}</span>
+                  <p className={`text-xs mt-1 ${p.color}`}>{p.name}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 rounded-xl bg-muted/50 text-sm text-muted-foreground">
+              <p className="font-semibold mb-1">How it works:</p>
+              <p>Paste any cooking video link and our AI extracts the recipe — title, ingredients, instructions, and all. The original video creator is credited in the story.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Source info */}
+            {metadata && metadata.thumbnail && (
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
+                <img src={metadata.thumbnail} alt="" className="w-20 h-20 rounded-lg object-cover" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">{metadata.title || "Video"}</p>
+                  {metadata.author && <p className="text-xs text-muted-foreground">by {metadata.author}</p>}
+                </div>
+              </div>
+            )}
+
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="font-serif text-2xl font-bold mb-1">{result.title}</h2>
+                <div className="flex gap-3 text-sm text-muted-foreground mb-4">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {result.cooking_time} min</span>
+                  <span>{result.servings} servings</span>
+                  <Badge variant="outline" className="text-xs">{result.category}</Badge>
+                </div>
+
+                <h3 className="font-semibold mb-2">Ingredients</h3>
+                <ul className="space-y-1 mb-4">
+                  {result.ingredients.map((ing, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <span className="text-primary mt-1">•</span> {ing}
+                    </li>
+                  ))}
+                </ul>
+
+                <h3 className="font-semibold mb-2">Instructions</h3>
+                <p className="text-sm whitespace-pre-line text-muted-foreground">{result.instructions}</p>
+
+                {result.source_author && (
+                  <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1">
+                    <Link2 className="w-3 h-3" /> Inspired by {result.source_author}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-3 justify-center">
+              <Button onClick={handleSaveRecipe} className="rounded-full bg-primary px-8">
+                <Plus className="w-4 h-4 mr-2" /> Save to Collection
+              </Button>
+              <Button onClick={() => { setResult(null); setMetadata(null); setUrl(""); }} variant="outline" className="rounded-full">
+                Try Another Link
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -5116,6 +6062,9 @@ function App() {
                 <Route path="/subscription-success" element={<ProtectedRoute><SubscriptionSuccessPage /></ProtectedRoute>} />
                 <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
                 <Route path="/add-recipe" element={<ProtectedRoute><AddRecipePage /></ProtectedRoute>} />
+                <Route path="/scan-recipe" element={<ProtectedRoute><ScanRecipePage /></ProtectedRoute>} />
+                <Route path="/voice-recipe" element={<ProtectedRoute><VoiceRecipePage /></ProtectedRoute>} />
+                <Route path="/save-from-link" element={<ProtectedRoute><SaveFromLinkPage /></ProtectedRoute>} />
                 <Route path="/recipe/:id" element={<ProtectedRoute><RecipeDetailPage /></ProtectedRoute>} />
                 <Route path="/recipe/:id/edit" element={<ProtectedRoute><EditRecipePage /></ProtectedRoute>} />
                 <Route path="/recipe/:id/cook" element={<ProtectedRoute><CookModePage /></ProtectedRoute>} />

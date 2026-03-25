@@ -20,6 +20,8 @@ import jwt
 import bcrypt
 import json
 import httpx
+import base64
+from openai import AsyncOpenAI
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -188,6 +190,10 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# ===================== OPENAI CLIENT =====================
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # ===================== CREDIT SYSTEM =====================
 
@@ -1982,6 +1988,470 @@ async def get_badges(user: dict = Depends(get_current_user)):
         })
 
     return {"badges": badges}
+
+
+# ===================== AI RECIPE SCANNER (Milestone 2.1) =====================
+
+RECIPE_SCAN_PROMPT = """You are a recipe extraction assistant for a family recipe app called Legacy Table.
+Analyze this image of a recipe (handwritten, printed, or from a book/card) and extract the following structured data.
+
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "Recipe title",
+  "ingredients": ["ingredient 1 with quantity", "ingredient 2 with quantity", ...],
+  "instructions": "Full cooking instructions as a single string with paragraph breaks",
+  "cooking_time": 30,
+  "servings": 4,
+  "category": "Main Course",
+  "difficulty": "easy",
+  "story": "Any personal notes, history, or story visible on the recipe card (or null if none)"
+}
+
+Rules:
+- cooking_time is in minutes (integer). Estimate if not stated.
+- servings is an integer. Estimate if not stated (default 4).
+- category must be one of: Main Course, Appetizer, Dessert, Soup, Salad, Breakfast, Snack, Beverage
+- difficulty must be one of: easy, medium, hard (estimate based on complexity)
+- Keep ingredients as a clean list with quantities
+- Instructions should be clear, readable paragraphs
+- If you see a story, family note, or dedication on the card, capture it in "story"
+- Return ONLY the JSON object, no markdown, no explanation"""
+
+
+@api_router.post("/ai/scan-recipe")
+async def scan_recipe(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Scan a photo of a recipe and extract structured data using GPT-4 Vision."""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="AI features are not configured")
+
+    user = await get_current_user(credentials)
+
+    # Consume credit
+    user = await consume_credit(user, "recipe_scan")
+
+    body = await request.json()
+    image_data = body.get("image")  # Base64 data URL
+    if not image_data:
+        raise HTTPException(status_code=400, detail="No image provided")
+
+    # Handle data URL format: strip prefix if present
+    if image_data.startswith("data:"):
+        # e.g., data:image/jpeg;base64,/9j/4AAQ...
+        image_data_b64 = image_data.split(",", 1)[1] if "," in image_data else image_data
+        media_type = image_data.split(";")[0].split(":")[1] if ";" in image_data else "image/jpeg"
+    else:
+        image_data_b64 = image_data
+        media_type = "image/jpeg"
+
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": RECIPE_SCAN_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{image_data_b64}",
+                                "detail": "high",
+                            },
+                        },
+                    ],
+                }
+            ],
+            max_tokens=2000,
+            temperature=0.1,
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Parse JSON — strip markdown fences if present
+        if result_text.startswith("```"):
+            result_text = result_text.split("\n", 1)[1] if "\n" in result_text else result_text[3:]
+            if result_text.endswith("```"):
+                result_text = result_text[:-3]
+            result_text = result_text.strip()
+
+        recipe_data = json.loads(result_text)
+
+        # Validate required fields
+        required = ["title", "ingredients", "instructions"]
+        for field in required:
+            if field not in recipe_data or not recipe_data[field]:
+                raise ValueError(f"Missing required field: {field}")
+
+        # Set defaults for optional fields
+        recipe_data.setdefault("cooking_time", 30)
+        recipe_data.setdefault("servings", 4)
+        recipe_data.setdefault("category", "Main Course")
+        recipe_data.setdefault("difficulty", "easy")
+        recipe_data.setdefault("story", None)
+
+        return {
+            "success": True,
+            "recipe": recipe_data,
+            "credits_remaining": user.get("credits_balance", 0),
+        }
+
+    except json.JSONDecodeError as e:
+        logger.error("AI recipe scan JSON parse error: %s", e)
+        raise HTTPException(status_code=422, detail="AI could not parse this image into a recipe. Try a clearer photo.")
+    except Exception as e:
+        logger.error("AI recipe scan error: %s", e)
+        raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
+
+
+# ===================== VOICE-TO-RECIPE (Milestone 2.2) =====================
+
+VOICE_RECIPE_PROMPT = """You are a recipe structuring assistant for a family recipe app called Legacy Table.
+The user dictated a recipe by voice. The transcription is below. Extract and structure it into a clean recipe.
+
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "Recipe title (infer from context if not stated)",
+  "ingredients": ["ingredient 1 with quantity", "ingredient 2 with quantity", ...],
+  "instructions": "Full cooking instructions as a single string with paragraph breaks",
+  "cooking_time": 30,
+  "servings": 4,
+  "category": "Main Course",
+  "difficulty": "easy",
+  "story": "Any personal story or context the speaker mentioned (or null)"
+}
+
+Rules:
+- Clean up filler words (um, uh, like, you know) from instructions
+- Organize rambling narration into clear step-by-step instructions
+- Extract ingredient quantities even if stated informally ("about two cups of flour" → "2 cups flour")
+- cooking_time in minutes, servings as integer
+- category: Main Course, Appetizer, Dessert, Soup, Salad, Breakfast, Snack, or Beverage
+- difficulty: easy, medium, or hard
+- If the speaker shares personal stories or memories, capture them in "story"
+- Return ONLY the JSON object"""
+
+
+@api_router.post("/ai/voice-to-recipe")
+async def voice_to_recipe(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Transcribe audio of a spoken recipe and extract structured data."""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="AI features are not configured")
+
+    user = await get_current_user(credentials)
+
+    # Consume credit (voice costs 2)
+    user = await consume_credit(user, "voice_to_recipe")
+
+    body = await request.json()
+    audio_data = body.get("audio")  # Base64 encoded audio
+    audio_format = body.get("format", "webm")  # webm, mp4, wav, etc.
+
+    if not audio_data:
+        raise HTTPException(status_code=400, detail="No audio provided")
+
+    # Strip data URL prefix if present
+    if audio_data.startswith("data:"):
+        audio_data = audio_data.split(",", 1)[1] if "," in audio_data else audio_data
+
+    try:
+        # Step 1: Transcribe with Whisper
+        import tempfile
+        audio_bytes = base64.b64decode(audio_data)
+
+        with tempfile.NamedTemporaryFile(suffix=f".{audio_format}", delete=True) as tmp:
+            tmp.write(audio_bytes)
+            tmp.flush()
+
+            with open(tmp.name, "rb") as audio_file:
+                transcript = await openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="en",
+                )
+
+        transcription_text = transcript.text
+        if not transcription_text or len(transcription_text.strip()) < 10:
+            raise HTTPException(status_code=422, detail="Could not transcribe audio. Please speak clearly and try again.")
+
+        # Step 2: Structure with GPT-4o
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": VOICE_RECIPE_PROMPT},
+                {"role": "user", "content": f"Here is the transcription of a spoken recipe:\n\n{transcription_text}"},
+            ],
+            max_tokens=2000,
+            temperature=0.1,
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Parse JSON
+        if result_text.startswith("```"):
+            result_text = result_text.split("\n", 1)[1] if "\n" in result_text else result_text[3:]
+            if result_text.endswith("```"):
+                result_text = result_text[:-3]
+            result_text = result_text.strip()
+
+        recipe_data = json.loads(result_text)
+
+        # Validate
+        required = ["title", "ingredients", "instructions"]
+        for field in required:
+            if field not in recipe_data or not recipe_data[field]:
+                raise ValueError(f"Missing required field: {field}")
+
+        recipe_data.setdefault("cooking_time", 30)
+        recipe_data.setdefault("servings", 4)
+        recipe_data.setdefault("category", "Main Course")
+        recipe_data.setdefault("difficulty", "easy")
+        recipe_data.setdefault("story", None)
+
+        return {
+            "success": True,
+            "transcription": transcription_text,
+            "recipe": recipe_data,
+            "credits_remaining": user.get("credits_balance", 0),
+        }
+
+    except json.JSONDecodeError as e:
+        logger.error("Voice recipe JSON parse error: %s", e)
+        raise HTTPException(status_code=422, detail="AI could not structure the transcription into a recipe. Try speaking more clearly.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Voice-to-recipe error: %s", e)
+        raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
+
+
+# ===================== SAVE FROM SOCIAL MEDIA (Milestone 3.2) =====================
+
+SOCIAL_RECIPE_PROMPT = """You are a recipe extraction assistant for Legacy Table, a family recipe app.
+The user pasted a link to a cooking video or post from social media. Below is the metadata we extracted from the page (title, description, author, thumbnail).
+
+Using this metadata, create a structured recipe. If the description doesn't contain a full recipe, do your best to infer reasonable ingredients and instructions from the title and description.
+
+Return ONLY valid JSON:
+{
+  "title": "Recipe title",
+  "ingredients": ["ingredient 1", "ingredient 2", ...],
+  "instructions": "Step-by-step instructions",
+  "cooking_time": 30,
+  "servings": 4,
+  "category": "Main Course",
+  "difficulty": "easy",
+  "story": "Saved from @username on TikTok/Instagram",
+  "source_url": "original URL",
+  "source_author": "creator name"
+}
+
+Rules:
+- category: Main Course, Appetizer, Dessert, Soup, Salad, Breakfast, Snack, or Beverage
+- difficulty: easy, medium, or hard
+- If you can't determine full ingredients/instructions from the metadata, provide your best educated guess based on the recipe title and mark instructions with "(Adapted from video — adjust to taste)"
+- Return ONLY JSON"""
+
+
+@api_router.post("/ai/save-from-link")
+async def save_from_link(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Extract recipe from a TikTok/Instagram/YouTube link using oEmbed + AI."""
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="AI features are not configured")
+
+    user = await get_current_user(credentials)
+    user = await consume_credit(user, "recipe_scan")  # 1 credit
+
+    body = await request.json()
+    url = body.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="No URL provided")
+
+    # Determine platform and fetch oEmbed metadata
+    metadata = {"url": url, "title": "", "description": "", "author": "", "thumbnail": ""}
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Try oEmbed endpoints
+            oembed_url = None
+            if "tiktok.com" in url:
+                oembed_url = f"https://www.tiktok.com/oembed?url={url}"
+            elif "instagram.com" in url:
+                oembed_url = f"https://api.instagram.com/oembed?url={url}"
+            elif "youtube.com" in url or "youtu.be" in url:
+                oembed_url = f"https://www.youtube.com/oembed?url={url}&format=json"
+
+            if oembed_url:
+                resp = await client.get(oembed_url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    metadata["title"] = data.get("title", "")
+                    metadata["author"] = data.get("author_name", "")
+                    metadata["thumbnail"] = data.get("thumbnail_url", "")
+                    metadata["description"] = data.get("title", "")  # oEmbed often puts description in title
+
+            # Fallback: try to get Open Graph tags via a HEAD-like request
+            if not metadata["title"]:
+                resp = await client.get(url, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"})
+                text = resp.text[:5000]  # Only scan first 5k chars
+                import re
+                og_title = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)', text)
+                og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)', text)
+                og_image = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', text)
+                if og_title:
+                    metadata["title"] = og_title.group(1)
+                if og_desc:
+                    metadata["description"] = og_desc.group(1)
+                if og_image:
+                    metadata["thumbnail"] = og_image.group(1)
+
+    except Exception as e:
+        logger.warning("Failed to fetch social media metadata: %s", e)
+        # Continue with whatever we have — AI can work with just the URL
+
+    # Use GPT-4o to structure into a recipe
+    try:
+        meta_text = f"URL: {url}\nTitle: {metadata['title']}\nAuthor: {metadata['author']}\nDescription: {metadata['description']}"
+
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SOCIAL_RECIPE_PROMPT},
+                {"role": "user", "content": meta_text},
+            ],
+            max_tokens=2000,
+            temperature=0.2,
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        if result_text.startswith("```"):
+            result_text = result_text.split("\n", 1)[1] if "\n" in result_text else result_text[3:]
+            if result_text.endswith("```"):
+                result_text = result_text[:-3]
+            result_text = result_text.strip()
+
+        recipe_data = json.loads(result_text)
+        recipe_data.setdefault("cooking_time", 30)
+        recipe_data.setdefault("servings", 4)
+        recipe_data.setdefault("category", "Main Course")
+        recipe_data.setdefault("difficulty", "easy")
+        recipe_data["source_url"] = url
+        recipe_data["source_author"] = metadata.get("author", "")
+
+        return {
+            "success": True,
+            "recipe": recipe_data,
+            "metadata": metadata,
+            "credits_remaining": user.get("credits_balance", 0),
+        }
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="Could not extract a recipe from this link. Try a different video.")
+    except Exception as e:
+        logger.error("Save from link error: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to process link: {str(e)}")
+
+
+# ===================== LEGACY CLIPS (Milestone 3.3) =====================
+
+@api_router.post("/recipes/{recipe_id}/clips")
+async def add_legacy_clip(recipe_id: str, request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Add a short video clip (legacy clip) to a recipe. Max 16MB base64."""
+    user = await get_current_user(credentials)
+
+    recipe = await db.recipes.find_one({"_id": recipe_id})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    if recipe.get("family_id") != user.get("family_id"):
+        raise HTTPException(status_code=403, detail="You can only add clips to family recipes")
+
+    body = await request.json()
+    video_data = body.get("video")  # Base64 data URL
+    caption = body.get("caption", "")
+    duration = body.get("duration", 0)  # seconds
+
+    if not video_data:
+        raise HTTPException(status_code=400, detail="No video provided")
+
+    # Check size (rough estimate: base64 is ~33% larger than binary)
+    data_part = video_data.split(",", 1)[1] if "," in video_data else video_data
+    estimated_size_mb = len(data_part) * 3 / 4 / (1024 * 1024)
+    if estimated_size_mb > 16:
+        raise HTTPException(status_code=413, detail="Video too large. Please record clips under 30 seconds.")
+
+    clip = {
+        "id": str(uuid.uuid4()),
+        "video": video_data,
+        "caption": caption[:200],
+        "duration": min(duration, 60),
+        "author_id": user["id"],
+        "author_name": user.get("name", "Unknown"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    await db.recipes.update_one(
+        {"_id": recipe_id},
+        {"$push": {"legacy_clips": clip}}
+    )
+
+    return {"success": True, "clip": {k: v for k, v in clip.items() if k != "video"}}
+
+
+@api_router.get("/recipes/{recipe_id}/clips")
+async def get_legacy_clips(recipe_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get all legacy clips for a recipe (metadata only, no video data)."""
+    user = await get_current_user(credentials)
+
+    recipe = await db.recipes.find_one({"_id": recipe_id})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    clips = recipe.get("legacy_clips", [])
+    # Return metadata without the heavy video data
+    clips_meta = [{k: v for k, v in c.items() if k != "video"} for c in clips]
+    return {"clips": clips_meta}
+
+
+@api_router.get("/recipes/{recipe_id}/clips/{clip_id}")
+async def get_legacy_clip_video(recipe_id: str, clip_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get a single legacy clip with video data for playback."""
+    user = await get_current_user(credentials)
+
+    recipe = await db.recipes.find_one({"_id": recipe_id})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    clips = recipe.get("legacy_clips", [])
+    clip = next((c for c in clips if c["id"] == clip_id), None)
+    if not clip:
+        raise HTTPException(status_code=404, detail="Clip not found")
+
+    return {"clip": clip}
+
+
+@api_router.delete("/recipes/{recipe_id}/clips/{clip_id}")
+async def delete_legacy_clip(recipe_id: str, clip_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Delete a legacy clip from a recipe."""
+    user = await get_current_user(credentials)
+
+    recipe = await db.recipes.find_one({"_id": recipe_id})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Must be clip author or family keeper
+    clips = recipe.get("legacy_clips", [])
+    clip = next((c for c in clips if c["id"] == clip_id), None)
+    if not clip:
+        raise HTTPException(status_code=404, detail="Clip not found")
+
+    if clip["author_id"] != user["id"] and user.get("role") != "keeper":
+        raise HTTPException(status_code=403, detail="You can only delete your own clips")
+
+    await db.recipes.update_one(
+        {"_id": recipe_id},
+        {"$pull": {"legacy_clips": {"id": clip_id}}}
+    )
+
+    return {"success": True}
 
 
 # ===================== HOLIDAY HEADQUARTERS =====================
