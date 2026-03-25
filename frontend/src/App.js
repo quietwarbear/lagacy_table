@@ -3,7 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Link, useParams } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import { ChefHat, Utensils, Camera, Clock, Users, Flame, Heart, Plus, LogOut, Menu, X, Home, User, Search, Download, BookOpen, Moon, Sun, Edit, MessageCircle, Trash2, Send, Bell, Settings, Upload, Copy, Crown, UserPlus, Sparkles, Share2 } from "lucide-react";
+import { ChefHat, Utensils, Camera, Clock, Users, Flame, Heart, Plus, LogOut, Menu, X, Home, User, Search, Download, BookOpen, Moon, Sun, Edit, MessageCircle, Trash2, Send, Bell, Settings, Upload, Copy, Crown, UserPlus, Sparkles, Share2, Volume2, VolumeX, SkipForward, SkipBack, ChevronLeft, ChevronRight } from "lucide-react";
 import * as familiesApi from "./api/families";
 import jsPDF from "jspdf";
 import { Button } from "./components/ui/button";
@@ -2700,7 +2700,7 @@ const RecipeDetailPage = () => {
 };
 
 
-// Cook Mode Page: Full-screen cooking interface with step-by-step instructions
+// Cook Mode Page: Full-screen cooking interface with step-by-step instructions, TTS, and timers
 const CookModePage = () => {
   const { id } = useParams();
   const { token } = useAuth();
@@ -2711,16 +2711,31 @@ const CookModePage = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [checkedIngredients, setCheckedIngredients] = useState({});
   const [screenAwake, setScreenAwake] = useState(false);
+  const wakeLockRef = React.useRef(null);
   const [timerMinutes, setTimerMinutes] = useState(0);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
+  // TTS state
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const [ttsRate, setTtsRate] = useState(0.9);
+  const [showIngredients, setShowIngredients] = useState(false);
 
-  // Parse instructions into steps
+  // Parse instructions into steps — handles both newline-separated and paragraph-style
   const parseSteps = (instructionsText) => {
     if (!instructionsText) return [];
+    // First try splitting by newlines
     const lines = instructionsText.split('\n').filter(line => line.trim());
-    return lines.map(line => line.trim());
+    if (lines.length > 1) return lines.map(line => line.trim());
+    // Single block of text — split by sentences (period followed by space + capital letter, or period at end)
+    const text = instructionsText.trim();
+    const sentences = text.match(/[^.!?]+[.!?]+(?:\s|$)/g);
+    if (sentences && sentences.length > 1) {
+      return sentences.map(s => s.trim()).filter(s => s.length > 0);
+    }
+    // Fallback: return as single step
+    return [text];
   };
 
   useEffect(() => {
@@ -2746,55 +2761,110 @@ const CookModePage = () => {
     }
   };
 
-  // Wake Lock API management
+  // ---- Text-to-Speech ----
+  const speak = React.useCallback((text) => {
+    if (!('speechSynthesis' in window)) {
+      toast.error("Text-to-speech is not supported on this browser");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = ttsRate;
+    utterance.pitch = 1;
+    utterance.onstart = () => setTtsSpeaking(true);
+    utterance.onend = () => setTtsSpeaking(false);
+    utterance.onerror = () => setTtsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }, [ttsRate]);
+
+  const stopSpeaking = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setTtsSpeaking(false);
+  };
+
+  // Auto-read step when TTS is enabled and step changes
+  const steps = recipe ? parseSteps(recipe.instructions) : [];
+  const currentStepText = steps[currentStep] || "";
+
+  useEffect(() => {
+    if (ttsEnabled && currentStepText) {
+      speak(currentStepText);
+    }
+    return () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+  }, [currentStep, ttsEnabled, currentStepText, speak]);
+
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const toggleTts = () => {
+    if (ttsEnabled) {
+      stopSpeaking();
+      setTtsEnabled(false);
+    } else {
+      setTtsEnabled(true);
+      if (currentStepText) speak(currentStepText);
+    }
+  };
+
+  // ---- Wake Lock ----
   const toggleScreenAwake = async () => {
     if (screenAwake) {
-      // Release wake lock
+      if (wakeLockRef.current) {
+        try { await wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
       setScreenAwake(false);
       toast.success("Screen lock released");
     } else {
-      // Request wake lock
       try {
-        const wakeLock = await navigator.wakeLock.request('screen');
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
         setScreenAwake(true);
         toast.success("Screen will stay awake");
-
-        // Release on visibility change
-        const handleVisibilityChange = async () => {
-          if (document.hidden) {
-            wakeLock.release();
-            setScreenAwake(false);
-          }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => {
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-      } catch (err) {
+        wakeLockRef.current.addEventListener('release', () => {
+          setScreenAwake(false);
+          wakeLockRef.current = null;
+        });
+      } catch {
         toast.error("Screen wake lock not supported on this device");
       }
     }
   };
 
-  // Timer countdown effect
+  // Cleanup wake lock on unmount
+  useEffect(() => {
+    return () => {
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch {}
+      }
+    };
+  }, []);
+
+  // ---- Timer ----
   useEffect(() => {
     let interval;
     if (timerActive && (timerMinutes > 0 || timerSeconds > 0)) {
       interval = setInterval(() => {
-        if (timerSeconds > 0) {
-          setTimerSeconds(timerSeconds - 1);
-        } else if (timerMinutes > 0) {
-          setTimerMinutes(timerMinutes - 1);
-          setTimerSeconds(59);
-        } else {
-          setTimerActive(false);
-          toast.success("Timer complete!");
-        }
+        setTimerSeconds(prev => {
+          if (prev > 0) return prev - 1;
+          setTimerMinutes(m => {
+            if (m > 0) return m - 1;
+            setTimerActive(false);
+            toast.success("Timer complete!");
+            if (ttsEnabled) speak("Timer is done!");
+            return 0;
+          });
+          return prev > 0 ? prev - 1 : 59;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timerActive, timerMinutes, timerSeconds]);
+  }, [timerActive, timerMinutes, timerSeconds, ttsEnabled, speak]);
 
   const handleTimerStart = () => {
     if (timerMinutes === 0 && timerSeconds === 0) {
@@ -2811,12 +2881,30 @@ const CookModePage = () => {
   };
 
   const toggleIngredient = (index) => {
-    setCheckedIngredients(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
+    setCheckedIngredients(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
+  // ---- Step navigation ----
+  const goToStep = (step) => {
+    stopSpeaking();
+    setCurrentStep(step);
+  };
+
+  const goNext = () => goToStep(Math.min(steps.length - 1, currentStep + 1));
+  const goPrev = () => goToStep(Math.max(0, currentStep - 1));
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goNext(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+      else if (e.key === 'v' || e.key === 'V') toggleTts();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  });
+
+  // ---- Loading / Access states ----
   if (loading) {
     return (
       <div className="w-screen h-screen bg-background flex items-center justify-center">
@@ -2834,9 +2922,7 @@ const CookModePage = () => {
         <div className="text-center">
           <h2 className="font-serif text-2xl font-semibold mb-2">No access to this recipe</h2>
           <p className="text-muted-foreground mb-6">Join the family to cook this recipe</p>
-          <Button onClick={() => navigate("/recipe/" + id)} className="rounded-full">
-            Back to Recipe
-          </Button>
+          <Button onClick={() => navigate("/recipe/" + id)} className="rounded-full">Back to Recipe</Button>
         </div>
       </div>
     );
@@ -2851,146 +2937,223 @@ const CookModePage = () => {
           <Crown className="w-12 h-12 text-primary mx-auto mb-4" />
           <h2 className="font-serif text-2xl font-semibold mb-2">Cook Mode is a Heritage feature</h2>
           <p className="text-muted-foreground mb-6">Upgrade to Heritage Keeper to use the full-screen cooking interface</p>
-          <Button onClick={() => navigate("/subscribe")} className="rounded-full bg-primary">
-            Upgrade Now
-          </Button>
+          <Button onClick={() => navigate("/subscribe")} className="rounded-full bg-primary">Upgrade Now</Button>
         </div>
       </div>
     );
   }
 
-  const steps = parseSteps(recipe.instructions);
-  const currentStepText = steps[currentStep] || "";
+  const progressPct = steps.length > 1 ? ((currentStep) / (steps.length - 1)) * 100 : 100;
 
   return (
     <div className="w-screen h-screen bg-amber-50 dark:bg-amber-950 flex flex-col overflow-hidden">
-      {/* Top Bar */}
-      <div className="bg-amber-100 dark:bg-amber-900 border-b border-amber-200 dark:border-amber-800 p-4 flex items-center justify-between">
-        <div className="flex-1">
-          <h1 className="font-serif text-xl md:text-2xl font-bold text-foreground truncate">
-            {recipe.title}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {recipe.cooking_time} min • {recipe.servings} servings
-          </p>
-        </div>
-        <button
-          onClick={() => navigate(`/recipe/${id}`)}
-          className="p-2 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg transition-colors"
-          aria-label="Exit cook mode"
-        >
-          <X className="w-6 h-6 text-foreground" />
-        </button>
+      {/* Progress Bar */}
+      <div className="h-1.5 bg-amber-200 dark:bg-amber-900">
+        <div
+          className="h-full bg-amber-600 transition-all duration-300 ease-out"
+          style={{ width: `${progressPct}%` }}
+        />
       </div>
 
+      {/* Top Bar */}
+      <div className="bg-amber-100 dark:bg-amber-900 border-b border-amber-200 dark:border-amber-800 px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="font-serif text-lg md:text-xl font-bold text-foreground truncate">
+            {recipe.title}
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {recipe.cooking_time} min  •  {recipe.servings} servings  •  Step {currentStep + 1}/{steps.length}
+          </p>
+        </div>
+
+        {/* Top bar controls */}
+        <div className="flex items-center gap-2">
+          {/* TTS toggle */}
+          <button
+            onClick={toggleTts}
+            className={`p-2 rounded-lg transition-colors ${
+              ttsEnabled
+                ? 'bg-amber-600 text-white'
+                : 'hover:bg-amber-200 dark:hover:bg-amber-800 text-foreground'
+            }`}
+            aria-label={ttsEnabled ? "Turn off voice" : "Read aloud"}
+            title={ttsEnabled ? "Voice on (press V)" : "Read aloud (press V)"}
+          >
+            {ttsEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </button>
+
+          {/* Screen awake toggle */}
+          <button
+            onClick={toggleScreenAwake}
+            className={`p-2 rounded-lg transition-colors ${
+              screenAwake
+                ? 'bg-green-600 text-white'
+                : 'hover:bg-amber-200 dark:hover:bg-amber-800 text-foreground'
+            }`}
+            aria-label={screenAwake ? "Screen awake" : "Keep screen on"}
+            title={screenAwake ? "Screen staying awake" : "Keep screen on"}
+          >
+            {screenAwake ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+
+          {/* Ingredients toggle (mobile) */}
+          <button
+            onClick={() => setShowIngredients(!showIngredients)}
+            className="p-2 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg transition-colors md:hidden text-foreground"
+            aria-label="Toggle ingredients"
+          >
+            <ChefHat className="w-5 h-5" />
+          </button>
+
+          {/* Exit */}
+          <button
+            onClick={() => navigate(`/recipe/${id}`)}
+            className="p-2 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg transition-colors"
+            aria-label="Exit cook mode"
+          >
+            <X className="w-5 h-5 text-foreground" />
+          </button>
+        </div>
+      </div>
+
+      {/* TTS speed control (shown when TTS is enabled) */}
+      {ttsEnabled && (
+        <div className="bg-amber-100/80 dark:bg-amber-900/80 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center gap-3">
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Speed:</span>
+          {[0.7, 0.9, 1.0, 1.2].map(rate => (
+            <button
+              key={rate}
+              onClick={() => setTtsRate(rate)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                ttsRate === rate
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-amber-200/60 dark:bg-amber-800/60 text-amber-700 dark:text-amber-300'
+              }`}
+            >
+              {rate === 0.7 ? 'Slow' : rate === 0.9 ? 'Normal' : rate === 1.0 ? 'Fast' : 'Faster'}
+            </button>
+          ))}
+          {ttsSpeaking && (
+            <span className="ml-auto text-xs text-amber-600 dark:text-amber-400 animate-pulse">Speaking...</span>
+          )}
+        </div>
+      )}
+
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto flex flex-col md:flex-row gap-6 p-6 md:p-8">
+      <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
 
-        {/* Left: Instructions (Main) */}
-        <div className="flex-1 flex flex-col justify-center md:min-h-0 md:justify-start">
-          <div className="space-y-6">
-            {/* Step Counter */}
-            <div className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-              Step {currentStep + 1} of {steps.length}
-            </div>
+        {/* Left: Step display */}
+        <div className="flex-1 flex flex-col justify-center p-6 md:p-10 min-h-0">
+          {/* Large Step Text */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 md:p-12 shadow-lg border-2 border-amber-200 dark:border-amber-700 min-h-40 max-h-[50vh] overflow-y-auto flex items-center">
+            <p className="font-serif text-2xl md:text-3xl lg:text-4xl font-semibold text-foreground leading-relaxed">
+              {currentStepText}
+            </p>
+          </div>
 
-            {/* Large Step Text */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 md:p-12 shadow-lg border-2 border-amber-200 dark:border-amber-700 min-h-40 flex items-center">
-              <p className="font-serif text-3xl md:text-4xl lg:text-5xl font-semibold text-foreground leading-relaxed">
-                {currentStepText}
-              </p>
-            </div>
-
-            {/* Step Navigation */}
-            <div className="flex gap-3 justify-between">
+          {/* Step Navigation */}
+          <div className="flex gap-3 mt-6">
+            <Button
+              onClick={goPrev}
+              disabled={currentStep === 0}
+              variant="outline"
+              className="flex-1 rounded-xl border-2 border-amber-200 dark:border-amber-700 h-14 text-base font-semibold gap-2"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              Previous
+            </Button>
+            {currentStep === steps.length - 1 ? (
               <Button
-                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0}
-                variant="outline"
-                className="flex-1 rounded-xl border-2 border-amber-200 dark:border-amber-700 h-12 text-base font-semibold"
+                onClick={() => { stopSpeaking(); navigate(`/recipe/${id}`); }}
+                className="flex-1 rounded-xl bg-green-600 hover:bg-green-700 text-white h-14 text-base font-semibold"
               >
-                Previous
+                Done Cooking!
               </Button>
+            ) : (
               <Button
-                onClick={() => setCurrentStep(Math.min(steps.length - 1, currentStep + 1))}
-                disabled={currentStep === steps.length - 1}
-                className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white h-12 text-base font-semibold"
+                onClick={goNext}
+                className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white h-14 text-base font-semibold gap-2"
               >
                 Next
+                <ChevronRight className="w-5 h-5" />
               </Button>
-            </div>
+            )}
+          </div>
+
+          {/* Step dots */}
+          <div className="flex gap-1.5 justify-center mt-4 flex-wrap">
+            {steps.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => goToStep(i)}
+                className={`w-2.5 h-2.5 rounded-full transition-all ${
+                  i === currentStep
+                    ? 'bg-amber-600 scale-125'
+                    : i < currentStep
+                    ? 'bg-amber-400'
+                    : 'bg-amber-200 dark:bg-amber-800'
+                }`}
+                aria-label={`Go to step ${i + 1}`}
+              />
+            ))}
           </div>
         </div>
 
         {/* Right Sidebar: Ingredients & Timer */}
-        <div className="w-full md:w-80 space-y-6">
+        <div className={`w-full md:w-80 border-l border-amber-200 dark:border-amber-800 bg-amber-100/50 dark:bg-amber-900/30 overflow-y-auto p-4 space-y-4 ${
+          showIngredients ? 'block' : 'hidden md:block'
+        }`}>
 
           {/* Ingredients Checklist */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-2 border-amber-200 dark:border-amber-700">
-            <h2 className="font-serif text-lg font-semibold mb-4 text-foreground">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow border border-amber-200 dark:border-amber-700">
+            <h2 className="font-serif text-base font-semibold mb-3 text-foreground flex items-center gap-2">
+              <ChefHat className="w-4 h-4" />
               Ingredients
+              <span className="ml-auto text-xs text-muted-foreground font-normal">
+                {Object.values(checkedIngredients).filter(Boolean).length}/{recipe.ingredients.length}
+              </span>
             </h2>
-            <div className="space-y-3 max-h-40 overflow-y-auto">
+            <div className="space-y-2 max-h-48 overflow-y-auto">
               {recipe.ingredients.map((ingredient, index) => (
                 <button
                   key={index}
                   onClick={() => toggleIngredient(index)}
-                  className={`w-full text-left p-3 rounded-lg transition-all flex items-start gap-3 ${
+                  className={`w-full text-left p-2.5 rounded-lg transition-all flex items-start gap-2.5 text-sm ${
                     checkedIngredients[index]
-                      ? 'bg-green-100 dark:bg-green-900 line-through text-muted-foreground'
+                      ? 'bg-green-100 dark:bg-green-900/50 line-through text-muted-foreground'
                       : 'bg-amber-50 dark:bg-amber-900/30 text-foreground hover:bg-amber-100 dark:hover:bg-amber-900/50'
                   }`}
                 >
-                  <Checkbox
-                    checked={checkedIngredients[index] || false}
-                    className="mt-1"
-                    readOnly
-                  />
-                  <span className="text-sm md:text-base">{ingredient}</span>
+                  <Checkbox checked={checkedIngredients[index] || false} className="mt-0.5" readOnly />
+                  <span>{ingredient}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Timer */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-2 border-amber-200 dark:border-amber-700">
-            <h2 className="font-serif text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
-              <Clock className="w-5 h-5" />
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow border border-amber-200 dark:border-amber-700">
+            <h2 className="font-serif text-base font-semibold mb-3 text-foreground flex items-center gap-2">
+              <Clock className="w-4 h-4" />
               Timer
             </h2>
 
-            {/* Timer Display */}
-            <div className="text-5xl font-bold text-center text-amber-700 dark:text-amber-300 mb-4 font-mono">
+            <div className={`text-4xl font-bold text-center mb-3 font-mono ${
+              timerActive && timerMinutes === 0 && timerSeconds <= 10
+                ? 'text-red-600 animate-pulse'
+                : 'text-amber-700 dark:text-amber-300'
+            }`}>
               {String(timerMinutes).padStart(2, '0')}:{String(timerSeconds).padStart(2, '0')}
             </div>
 
-            {/* Time Input */}
-            <div className="space-y-2 mb-4">
-              <label className="text-sm text-muted-foreground">Set time (minutes):</label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min="0"
-                  value={timerMinutes}
-                  onChange={(e) => {
-                    setTimerMinutes(Math.max(0, parseInt(e.target.value) || 0));
-                    setTimerActive(false);
-                  }}
-                  className="h-10 rounded-lg border-2 border-amber-200 dark:border-amber-700"
-                  disabled={timerActive}
-                />
-              </div>
-            </div>
-
-            {/* Quick Timer Buttons */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {[5, 10, 15].map(mins => (
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              {[1, 5, 10, 15].map(mins => (
                 <Button
                   key={mins}
                   onClick={() => handleSetTimer(mins)}
                   variant="outline"
                   size="sm"
-                  className="rounded-lg border-amber-200 dark:border-amber-700 text-sm"
+                  className="rounded-lg border-amber-200 dark:border-amber-700 text-xs h-8"
                   disabled={timerActive}
                 >
                   {mins}m
@@ -2998,49 +3161,34 @@ const CookModePage = () => {
               ))}
             </div>
 
-            {/* Timer Control */}
-            <Button
-              onClick={handleTimerStart}
-              className={`w-full rounded-lg h-10 font-semibold ${
-                timerActive
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                  : 'bg-amber-200 dark:bg-amber-700 text-foreground hover:bg-amber-300 dark:hover:bg-amber-600'
-              }`}
-            >
-              {timerActive ? 'Pause' : 'Start'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleTimerStart}
+                className={`flex-1 rounded-lg h-9 text-sm font-semibold ${
+                  timerActive
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                    : 'bg-amber-200 dark:bg-amber-700 text-foreground hover:bg-amber-300 dark:hover:bg-amber-600'
+                }`}
+              >
+                {timerActive ? 'Pause' : 'Start'}
+              </Button>
+              <Button
+                onClick={() => { setTimerMinutes(0); setTimerSeconds(0); setTimerActive(false); }}
+                variant="outline"
+                className="rounded-lg h-9 text-sm border-amber-200 dark:border-amber-700"
+              >
+                Reset
+              </Button>
+            </div>
           </div>
 
-          {/* Screen Awake Toggle */}
-          <Button
-            onClick={toggleScreenAwake}
-            className={`w-full rounded-lg h-12 font-semibold text-base ${
-              screenAwake
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-                : 'bg-slate-200 dark:bg-slate-700 text-foreground hover:bg-slate-300 dark:hover:bg-slate-600'
-            }`}
-          >
-            {screenAwake ? (
-              <>
-                <Sun className="w-5 h-5 mr-2" />
-                Screen Awake
-              </>
-            ) : (
-              <>
-                <Moon className="w-5 h-5 mr-2" />
-                Keep Awake
-              </>
-            )}
-          </Button>
+          {/* Keyboard shortcuts hint */}
+          <div className="text-xs text-center text-muted-foreground space-y-0.5 pt-2">
+            <p>Arrow keys or space to navigate</p>
+            <p>Press V to toggle voice</p>
+          </div>
         </div>
       </div>
-      {recipe && (
-        <ShareRecipeModal
-          recipe={recipe}
-          isOpen={shareModalOpen}
-          onClose={() => setShareModalOpen(false)}
-        />
-      )}
     </div>
   );
 };
