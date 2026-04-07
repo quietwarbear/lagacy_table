@@ -16,8 +16,16 @@ class SubscriptionService {
   static const String offeringHeritage = 'heritage_keeper';
   static const String offeringLegacy = 'legacy_collection';
 
+  static bool _isConfigured = false;
+
+  static bool get isConfigured => _isConfigured;
+
   /// Initialize RevenueCat — call once from main() before runApp
   static Future<void> initialize() async {
+    if (_isConfigured) {
+      return;
+    }
+
     await Purchases.setLogLevel(
       AppConfig.isProduction ? LogLevel.error : LogLevel.debug,
     );
@@ -30,15 +38,18 @@ class SubscriptionService {
     }
 
     await Purchases.configure(config);
+    _isConfigured = true;
   }
 
   /// Identify the logged-in user with RevenueCat
   static Future<void> identify(String userId) async {
+    if (!_isConfigured) return;
     await Purchases.logIn(userId);
   }
 
   /// Reset (logout) — call on app logout
   static Future<void> reset() async {
+    if (!_isConfigured) return;
     await Purchases.logOut();
   }
 

@@ -846,7 +846,7 @@ const RecipeCard = ({ recipe, onClick }) => {
   );
 };
 
-// ===================== HOLIDAY HEADQUARTERS =====================
+// ===================== CELEBRATION HEADQUARTERS =====================
 
 const HolidayHeadquarters = () => {
   const [holidays, setHolidays] = useState(null);
@@ -908,7 +908,7 @@ const HolidayHeadquarters = () => {
             <div className="flex items-center gap-2 mb-1">
               <Calendar className="w-5 h-5" style={{ color: season_theme.color }} />
               <h2 className="font-serif text-xl font-bold" style={{ color: season_theme.color }}>
-                Holiday Headquarters
+                Celebration Headquarters
               </h2>
             </div>
             <p className="text-sm text-foreground/70">
@@ -1134,7 +1134,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Holiday Headquarters */}
+      {/* Celebration Headquarters */}
       <HolidayHeadquarters />
 
       {/* Filters */}

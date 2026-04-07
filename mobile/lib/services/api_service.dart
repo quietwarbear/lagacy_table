@@ -4,8 +4,6 @@ import 'recipe_service.dart';
 import 'comment_service.dart';
 import 'notification_service.dart';
 import 'family_service.dart';
-import 'ai_service.dart';
-import 'holiday_service.dart';
 
 /// Main API service class that provides access to all API services
 class ApiService {
@@ -15,8 +13,6 @@ class ApiService {
   late final CommentService comments;
   late final NotificationService notifications;
   late final FamilyService families;
-  late final AiService ai;
-  late final HolidayService holidays;
 
   ApiService() {
     _apiClient = ApiClient();
@@ -25,10 +21,8 @@ class ApiService {
     comments = CommentService(_apiClient);
     notifications = NotificationService(_apiClient);
     families = FamilyService(_apiClient);
-    ai = AiService(_apiClient);
-    holidays = HolidayService(_apiClient);
-  }
-
+  } 
+ 
   // Set authentication token (used after login)
   void setAuthToken(String? token) {
     _apiClient.setAuthToken(token);

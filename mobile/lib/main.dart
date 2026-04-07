@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:device_preview/device_preview.dart';
-import 'package:flutter/foundation.dart';
 import 'config/app_theme.dart';
 import 'providers/theme_provider.dart';
 import 'providers/subscription_provider.dart';
@@ -16,8 +15,12 @@ import 'views/subscription_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize RevenueCat
-  await SubscriptionService.initialize();
+  try {
+    await SubscriptionService.initialize();
+  } catch (e, stackTrace) {
+    debugPrint('Subscription initialization failed: $e');
+    debugPrintStack(stackTrace: stackTrace);
+  }
 
   runApp(
     DevicePreview(
@@ -41,7 +44,6 @@ class MyApp extends StatelessWidget {
         builder: (context, themeProvider, child) {
           if (!themeProvider.isInitialized) {
             return MaterialApp(
-              useInheritedMediaQuery: true,
               locale: DevicePreview.locale(context),
               builder: DevicePreview.appBuilder,
               debugShowCheckedModeBanner: false,
@@ -49,15 +51,12 @@ class MyApp extends StatelessWidget {
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               home: const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                body: Center(child: CircularProgressIndicator()),
               ),
             );
           }
 
           return MaterialApp(
-            useInheritedMediaQuery: true,
             locale: DevicePreview.locale(context),
             builder: DevicePreview.appBuilder,
             debugShowCheckedModeBanner: false,
@@ -79,4 +78,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-

@@ -57,8 +57,11 @@ class SubscriptionProvider extends ChangeNotifier {
     } on PlatformException catch (e) {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       if (errorCode != PurchasesErrorCode.purchaseCancelledError) {
-        _errorMessage = _friendlyError(errorCode);
+        _errorMessage = _friendlyError(errorCode, e.message);
       }
+      debugPrint(
+        'SubscriptionProvider.purchase platform error: code=${e.code} purchasesCode=$errorCode message=${e.message} details=${e.details}',
+      );
       return false;
     } catch (e) {
       _errorMessage = 'Purchase failed. Please try again.';
@@ -119,7 +122,7 @@ class SubscriptionProvider extends ChangeNotifier {
     }
   }
 
-  String _friendlyError(PurchasesErrorCode? code) {
+  String _friendlyError(PurchasesErrorCode? code, [String? message]) {
     switch (code) {
       case PurchasesErrorCode.purchaseNotAllowedError:
         return 'Purchases are not allowed on this device.';
@@ -127,7 +130,18 @@ class SubscriptionProvider extends ChangeNotifier {
         return 'Network error. Please check your connection.';
       case PurchasesErrorCode.productAlreadyPurchasedError:
         return 'You already have this subscription.';
+      case PurchasesErrorCode.storeProblemError:
+        return 'The App Store is having trouble completing this purchase right now.';
+      case PurchasesErrorCode.purchaseInvalidError:
+        return 'This product is not ready for purchase yet in App Store Connect.';
+      case PurchasesErrorCode.configurationError:
+        return 'Subscription configuration is incomplete. Please verify the RevenueCat offering and App Store product mapping.';
+      case PurchasesErrorCode.invalidCredentialsError:
+        return 'RevenueCat credentials are invalid for this app build.';
       default:
+        if (message != null && message.isNotEmpty) {
+          return message;
+        }
         return 'Something went wrong. Please try again.';
     }
   }

@@ -38,7 +38,9 @@ class Recipe {
       ingredients: List<String>.from(json['ingredients'] ?? []),
       instructions: json['instructions'] ?? '',
       story: json['story'],
-      photos: json['photos'] != null ? List<String>.from(json['photos']) : null,
+      photos: json['photos'] != null
+          ? List<String>.from(json['photos'])
+          : null,
       cookingTime: json['cooking_time'] ?? json['cookingTime'],
       servings: json['servings'],
       category: json['category'],
@@ -105,20 +107,6 @@ class CreateRecipeRequest {
       if (difficulty != null) 'difficulty': difficulty,
     };
   }
-
-  factory CreateRecipeRequest.fromJson(Map<String, dynamic> json) {
-    return CreateRecipeRequest(
-      title: json['title'] ?? '',
-      ingredients: List<String>.from(json['ingredients'] ?? const []),
-      instructions: json['instructions'] ?? '',
-      story: json['story'],
-      photos: json['photos'] != null ? List<String>.from(json['photos']) : null,
-      cookingTime: json['cooking_time'] ?? json['cookingTime'],
-      servings: json['servings'],
-      category: json['category'],
-      difficulty: json['difficulty'],
-    );
-  }
 }
 
 class UpdateRecipeRequest {
@@ -163,7 +151,10 @@ class Category {
   final String id;
   final String name;
 
-  Category({required this.id, required this.name});
+  Category({
+    required this.id,
+    required this.name,
+  });
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(

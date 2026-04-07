@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../config/app_theme.dart';
 import 'recipe_feed_screen.dart';
 import 'cookbook_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'add_recipe_screen.dart';
+import '../widgets/family_settings_tab.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,14 +23,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  
+  bool _showFabs = true;
+  Timer? _fabHideTimer;
+  DateTime? _fabVisibleUntil;
+
   final GlobalKey _recipeFeedKey = GlobalKey();
   final GlobalKey _cookbookKey = GlobalKey();
   final GlobalKey _profileKey = GlobalKey();
+  final GlobalKey _familyKey = GlobalKey();
   final GlobalKey _settingsKey = GlobalKey();
 
   late final List<Widget> _screens;
-  
+
   @override
   void initState() {
     super.initState();
@@ -34,19 +42,63 @@ class _HomeScreenState extends State<HomeScreen> {
       RecipeFeedScreen(key: _recipeFeedKey),
       CookbookScreen(key: _cookbookKey),
       ProfileScreen(key: _profileKey),
+      FamilySettingsTab(key: _familyKey),
       SettingsScreen(key: _settingsKey),
     ];
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<SubscriptionProvider>().loadSubscriptionStatus();
+      }
+    });
+
+    _startFabHideTimer();
+  }
+
+  @override
+  void dispose() {
+    _fabHideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startFabHideTimer() {
+    _fabHideTimer?.cancel();
+    _fabVisibleUntil = DateTime.now().add(const Duration(seconds: 30));
+    _fabHideTimer = Timer(const Duration(seconds: 30), () {
+      if (!mounted) return;
+      setState(() {
+        _showFabs = false;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final isDark = themeProvider.isDarkMode;
+    final hasSubscription = subscriptionProvider.hasAnySubscription;
+    final shouldShowFabs =
+        _currentIndex == 0 &&
+        _showFabs &&
+        (_fabVisibleUntil == null ||
+            DateTime.now().isBefore(_fabVisibleUntil!));
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          IndexedStack(index: _currentIndex, children: _screens),
+          if (_currentIndex == 0)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 12,
+              right: 16,
+              child: _buildSubscriptionBanner(
+                context: context,
+                isDark: isDark,
+                subscriptionProvider: subscriptionProvider,
+              ),
+            ),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -60,9 +112,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         child: SafeArea(
+          top: false,
           child: Container(
-            height: 70,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -85,9 +138,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   isDark: isDark,
                 ),
                 _buildNavItem(
+                  icon: 'assets/icons/Users.svg',
+                  label: 'Family',
+                  index: 3,
+                  isDark: isDark,
+                ),
+                _buildNavItem(
                   icon: 'assets/icons/Settings.svg',
                   label: 'Settings',
-                  index: 3,
+                  index: 4,
                   isDark: isDark,
                 ),
               ],
@@ -95,54 +154,183 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton.extended(
-              onPressed: () async {
-                final result = await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const AddRecipeScreen(),
+      floatingActionButton: shouldShowFabs
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!hasSubscription) ...[
+                  FloatingActionButton.extended(
+                    heroTag: 'upgrade_fab',
+                    onPressed: () => _openSubscription(context),
+                    backgroundColor: brandAccent,
+                    foregroundColor: isDark
+                        ? DarkColors.background
+                        : LightColors.textPrimary,
+                    icon: const Icon(Icons.workspace_premium_outlined),
+                    label: const Text(
+                      'Upgrade',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                );
-                if (result == true) {
-                  // Wait a bit to ensure navigation is complete
-                  await Future.delayed(const Duration(milliseconds: 100));
-                  
-                  final recipeFeedState = _recipeFeedKey.currentState;
-                  final cookbookState = _cookbookKey.currentState;
-                  
-                  if (recipeFeedState != null) {
-                    try {
-                      (recipeFeedState as dynamic).refreshRecipes();
-                    } catch (e) {
-                      if (kDebugMode) {
-                        print('Error refreshing recipe feed: $e');
+                  const SizedBox(height: 12),
+                ],
+                FloatingActionButton.extended(
+                  heroTag: 'share_recipe_fab',
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const AddRecipeScreen(),
+                      ),
+                    );
+                    if (result == true) {
+                      await Future.delayed(const Duration(milliseconds: 100));
+
+                      final recipeFeedState = _recipeFeedKey.currentState;
+                      final cookbookState = _cookbookKey.currentState;
+
+                      if (recipeFeedState != null) {
+                        try {
+                          (recipeFeedState as dynamic).refreshRecipes();
+                        } catch (e) {
+                          if (kDebugMode) {
+                            print('Error refreshing recipe feed: $e');
+                          }
+                        }
+                      }
+                      if (cookbookState != null) {
+                        try {
+                          (cookbookState as dynamic).refreshRecipes();
+                        } catch (e) {
+                          if (kDebugMode) {
+                            print('Error refreshing cookbook: $e');
+                          }
+                        }
                       }
                     }
-                  }
-                  if (cookbookState != null) {
-                    try {
-                      (cookbookState as dynamic).refreshRecipes();
-                    } catch (e) {
-                      if (kDebugMode) {
-                        print('Error refreshing cookbook: $e');
-                      }
+                    if (mounted) {
+                      setState(() {
+                        _showFabs = false;
+                        _fabVisibleUntil = null;
+                      });
                     }
-                  }
-                }
-              },
-              backgroundColor: brandPrimary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text(
-                'Share a Recipe',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontWeight: FontWeight.w600,
+                  },
+                  backgroundColor: brandPrimary,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text(
+                    'Share a Recipe',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Future<void> _openSubscription(BuildContext context) async {
+    await Navigator.of(context).pushNamed('/subscription');
+    if (context.mounted) {
+      context.read<SubscriptionProvider>().loadSubscriptionStatus();
+    }
+  }
+
+  Widget _buildSubscriptionBanner({
+    required BuildContext context,
+    required bool isDark,
+    required SubscriptionProvider subscriptionProvider,
+  }) {
+    final isSubscribed = subscriptionProvider.hasAnySubscription;
+    final title = switch (subscriptionProvider.tier) {
+      SubscriptionTier.legacy => 'Legacy Collection',
+      SubscriptionTier.heritage => 'Heritage Keeper',
+      SubscriptionTier.none => 'Upgrade',
+    };
+    final subtitle = isSubscribed
+        ? 'Premium plan active'
+        : 'Unlock premium family features';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openSubscription(context),
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSubscribed
+                ? brandSecondary.withValues(alpha: isDark ? 0.24 : 0.16)
+                : brandPrimary.withValues(alpha: isDark ? 0.22 : 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSubscribed ? brandSecondary : brandPrimary,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isSubscribed
+                    ? Icons.verified_outlined
+                    : Icons.workspace_premium_outlined,
+                color: isSubscribed ? brandSecondary : brandPrimary,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: isDark
+                          ? DarkColors.textPrimary
+                          : LightColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 11,
+                      color: isDark
+                          ? DarkColors.textSecondary
+                          : LightColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.chevron_right,
+                color: isDark
+                    ? DarkColors.textSecondary
+                    : LightColors.textSecondary,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -163,8 +351,20 @@ class _HomeScreenState extends State<HomeScreen> {
           final previousIndex = _currentIndex;
           setState(() {
             _currentIndex = index;
+            if (index == 0) {
+              _showFabs = true;
+              _fabVisibleUntil = DateTime.now().add(
+                const Duration(seconds: 30),
+              );
+            }
           });
-          
+
+          if (index == 0) {
+            _startFabHideTimer();
+          } else {
+            _fabHideTimer?.cancel();
+          }
+
           if (index == 1 && previousIndex != 1) {
             if (kDebugMode) {
               print('Navigating to Cookbook - refreshing recipes...');
@@ -180,7 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             }
           }
-          
+
           if (index == 2 && previousIndex != 2) {
             if (kDebugMode) {
               print('Navigating to My Recipes - refreshing recipes...');
@@ -196,10 +396,28 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             }
           }
-          
+
           if (index == 3 && previousIndex != 3) {
             if (kDebugMode) {
-              print('Navigating to Settings - refreshing family info and members...');
+              print('Navigating to Family - refreshing family info...');
+            }
+            final familyState = _familyKey.currentState;
+            if (familyState != null) {
+              try {
+                (familyState as dynamic).refreshFamilyInfo();
+              } catch (e) {
+                if (kDebugMode) {
+                  print('Error refreshing family info: $e');
+                }
+              }
+            }
+          }
+
+          if (index == 4 && previousIndex != 4) {
+            if (kDebugMode) {
+              print(
+                'Navigating to Settings - refreshing family info and members...',
+              );
             }
             final settingsState = _settingsKey.currentState;
             if (settingsState != null) {
@@ -219,22 +437,21 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             SvgPicture.asset(
               icon,
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                color,
-                BlendMode.srcIn,
-              ),
+              width: 22,
+              height: 22,
+              colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 fontFamily: 'Manrope',
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: color,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ],
         ),

@@ -3,6 +3,7 @@ import '../models/user.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
 import 'auth_service.dart';
+import 'subscription_service.dart';
 
 class SessionManager extends ChangeNotifier {
   final ApiService _apiService;
@@ -14,12 +15,10 @@ class SessionManager extends ChangeNotifier {
   bool _isLoading = false;
   late final Future<void> initialized;
 
-  SessionManager({
-    ApiService? apiService,
-    StorageService? storageService,
-  })  : _apiService = apiService ?? _getGlobalApiService(),
-        _storageService = storageService ?? StorageService(),
-        _authService = (apiService ?? _getGlobalApiService()).auth {
+  SessionManager({ApiService? apiService, StorageService? storageService})
+    : _apiService = apiService ?? _getGlobalApiService(),
+      _storageService = storageService ?? StorageService(),
+      _authService = (apiService ?? _getGlobalApiService()).auth {
     initialized = _initialize();
   }
 
@@ -92,7 +91,7 @@ class SessionManager extends ChangeNotifier {
       await _storageService.saveUserId(loginResponse.user.id);
       await _storageService.saveUserEmail(loginResponse.user.email);
       await _storageService.setLoggedIn(true);
-      
+
       // Save family data if available
       if (loginResponse.user.familyId != null) {
         await _storageService.saveFamilyId(loginResponse.user.familyId);
@@ -102,6 +101,7 @@ class SessionManager extends ChangeNotifier {
       }
 
       _apiService.setAuthToken(loginResponse.token);
+      await SubscriptionService.identify(loginResponse.user.id);
 
       // Update state
       _currentUser = loginResponse.user;
@@ -139,6 +139,7 @@ class SessionManager extends ChangeNotifier {
       }
 
       _apiService.setAuthToken(loginResponse.token);
+      await SubscriptionService.identify(loginResponse.user.id);
 
       _currentUser = loginResponse.user;
       _isLoggedIn = true;
@@ -178,7 +179,7 @@ class SessionManager extends ChangeNotifier {
       await _storageService.saveUserId(registerResponse.user.id);
       await _storageService.saveUserEmail(registerResponse.user.email);
       await _storageService.setLoggedIn(true);
-      
+
       // Save family data if available
       if (registerResponse.user.familyId != null) {
         await _storageService.saveFamilyId(registerResponse.user.familyId);
@@ -188,6 +189,7 @@ class SessionManager extends ChangeNotifier {
       }
 
       _apiService.setAuthToken(registerResponse.token);
+      await SubscriptionService.identify(registerResponse.user.id);
 
       // Update state
       _currentUser = registerResponse.user;
@@ -212,13 +214,14 @@ class SessionManager extends ChangeNotifier {
       // Update state first to prevent any race conditions
       _currentUser = null;
       _isLoggedIn = false;
-      
+
       // Clear API token
       _authService.logout();
+      await SubscriptionService.reset();
 
       // Clear all stored data
       await _storageService.clearAll();
-      
+
       // Ensure login state is cleared in storage
       await _storageService.setLoggedIn(false);
 
@@ -245,20 +248,20 @@ class SessionManager extends ChangeNotifier {
 
     try {
       _currentUser = await _authService.getCurrentUser();
-      
+
       // Update stored family data
       if (_currentUser?.familyId != null) {
         await _storageService.saveFamilyId(_currentUser!.familyId);
       } else {
         await _storageService.saveFamilyId(null);
       }
-      
+
       if (_currentUser?.role != null) {
         await _storageService.saveUserRole(_currentUser!.role);
       } else {
         await _storageService.saveUserRole(null);
       }
-      
+
       notifyListeners();
     } catch (e) {
       if (kDebugMode) {
@@ -272,10 +275,7 @@ class SessionManager extends ChangeNotifier {
   }
 
   /// Update user profile
-  Future<void> updateProfile({
-    String? nickname,
-    String? avatar,
-  }) async {
+  Future<void> updateProfile({String? nickname, String? avatar}) async {
     if (!_isLoggedIn) return;
 
     _isLoading = true;

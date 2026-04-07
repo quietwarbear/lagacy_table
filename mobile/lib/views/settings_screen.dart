@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/theme_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../config/app_theme.dart';
 import '../services/session_manager.dart';
 import '../services/api_service.dart';
@@ -42,6 +43,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         StyledSnackBar.showError(context, 'Could not open delete account page');
       }
+    }
+  }
+
+  Future<void> _openSubscription(BuildContext context) async {
+    await Navigator.of(context).pushNamed('/subscription');
+    if (context.mounted) {
+      context.read<SubscriptionProvider>().loadSubscriptionStatus();
     }
   }
 
@@ -134,7 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       return;
     }
-    
+
     final user = sessionManager.currentUser;
     if (user?.familyId == null) {
       if (mounted) {
@@ -148,18 +156,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     final familyId = user!.familyId!;
-    
+
     try {
       if (kDebugMode) {
         print('Loading family info for family ID: $familyId');
       }
-      
+
       final family = await apiService.families.getFamily(familyId);
-      
+
       if (kDebugMode) {
-        print('Family loaded successfully: ${family.name}, Invite Code: ${family.inviteCode}');
+        print(
+          'Family loaded successfully: ${family.name}, Invite Code: ${family.inviteCode}',
+        );
       }
-      
+
       if (mounted) {
         setState(() {
           _family = family;
@@ -189,14 +199,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _shareInviteCode(Family family) async {
-    final descriptionText = family.description != null && family.description!.isNotEmpty
+    final descriptionText =
+        family.description != null && family.description!.isNotEmpty
         ? '\n\n${family.description}'
         : '';
-    
-    final shareText = 'Join my family "${family.name}" on Legacy Table!\n\n'
+
+    final shareText =
+        'Join my family "${family.name}" on Legacy Table!\n\n'
         'Invite Code: ${family.inviteCode}'
         '$descriptionText';
-    
+
     await Share.share(shareText);
   }
 
@@ -246,7 +258,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(
             fontFamily: 'Manrope',
             fontSize: 14,
-            color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+            color: isDark
+                ? DarkColors.textSecondary
+                : LightColors.textSecondary,
           ),
         ),
         actions: [
@@ -256,7 +270,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Cancel',
               style: TextStyle(
                 fontFamily: 'Manrope',
-                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                color: isDark
+                    ? DarkColors.textSecondary
+                    : LightColors.textSecondary,
               ),
             ),
           ),
@@ -341,7 +357,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isDark = themeProvider.isDarkMode;
 
     // Get list of members who are not the current keeper
-    final otherMembers = _familyMembers.where((m) => !m.isKeeper && m.id != user?.id).toList();
+    final otherMembers = _familyMembers
+        .where((m) => !m.isKeeper && m.id != user?.id)
+        .toList();
 
     if (otherMembers.isEmpty) {
       // No other members, can leave directly
@@ -374,7 +392,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontSize: 14,
-                  color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                  color: isDark
+                      ? DarkColors.textSecondary
+                      : LightColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -386,7 +406,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: TextStyle(
                       fontFamily: 'Manrope',
                       fontSize: 16,
-                      color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                      color: isDark
+                          ? DarkColors.textPrimary
+                          : LightColors.textPrimary,
                     ),
                   ),
                   subtitle: Text(
@@ -394,7 +416,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: TextStyle(
                       fontFamily: 'Manrope',
                       fontSize: 12,
-                      color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                      color: isDark
+                          ? DarkColors.textSecondary
+                          : LightColors.textSecondary,
                     ),
                   ),
                   onTap: () => Navigator.pop(context, member),
@@ -410,7 +434,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Cancel',
               style: TextStyle(
                 fontFamily: 'Manrope',
-                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                color: isDark
+                    ? DarkColors.textSecondary
+                    : LightColors.textSecondary,
               ),
             ),
           ),
@@ -462,11 +488,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Show success message
       if (mounted) {
         final newKeeperName = newKeeper.nickname ?? newKeeper.name;
-        StyledSnackBar.showSuccess(context, 'Keeper role transferred to $newKeeperName');
+        StyledSnackBar.showSuccess(
+          context,
+          'Keeper role transferred to $newKeeperName',
+        );
       }
 
       if (mounted) {
-        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        final themeProvider = Provider.of<ThemeProvider>(
+          context,
+          listen: false,
+        );
         final isDark = themeProvider.isDarkMode;
 
         final shouldLeave = await showDialog<bool>(
@@ -479,7 +511,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontFamily: 'Manrope',
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                color: isDark
+                    ? DarkColors.textPrimary
+                    : LightColors.textPrimary,
               ),
             ),
             content: Text(
@@ -487,7 +521,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontFamily: 'Manrope',
                 fontSize: 14,
-                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                color: isDark
+                    ? DarkColors.textSecondary
+                    : LightColors.textSecondary,
               ),
             ),
             actions: [
@@ -497,7 +533,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Stay',
                   style: TextStyle(
                     fontFamily: 'Manrope',
-                    color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                    color: isDark
+                        ? DarkColors.textSecondary
+                        : LightColors.textSecondary,
                   ),
                 ),
               ),
@@ -565,7 +603,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(
             fontFamily: 'Manrope',
             fontSize: 14,
-            color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+            color: isDark
+                ? DarkColors.textSecondary
+                : LightColors.textSecondary,
           ),
         ),
         actions: [
@@ -575,7 +615,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Cancel',
               style: TextStyle(
                 fontFamily: 'Manrope',
-                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                color: isDark
+                    ? DarkColors.textSecondary
+                    : LightColors.textSecondary,
               ),
             ),
           ),
@@ -623,7 +665,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Show success message
       if (mounted) {
-        StyledSnackBar.showSuccess(context, '$memberName has been removed from the family');
+        StyledSnackBar.showSuccess(
+          context,
+          '$memberName has been removed from the family',
+        );
       }
     } catch (e) {
       // Close loading dialog if still open
@@ -645,6 +690,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final isDark = themeProvider.isDarkMode;
     final user = sessionManager.currentUser;
     final hasFamily = user?.hasFamily ?? false;
@@ -690,12 +736,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
           ),
         ),
-        backgroundColor: isDark ? DarkColors.background : LightColors.background,
+        backgroundColor: isDark
+            ? DarkColors.background
+            : LightColors.background,
         elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: subscriptionProvider.hasAnySubscription
+                    ? brandSecondary.withValues(alpha: 0.5)
+                    : brandPrimary.withValues(alpha: 0.45),
+                width: 1.2,
+              ),
+            ),
+            color: isDark ? DarkColors.surface : LightColors.surface,
+            child: ListTile(
+              leading: Icon(
+                subscriptionProvider.hasAnySubscription
+                    ? Icons.verified_outlined
+                    : Icons.workspace_premium_outlined,
+                color: subscriptionProvider.hasAnySubscription
+                    ? brandSecondary
+                    : brandPrimary,
+              ),
+              title: Text(
+                subscriptionProvider.hasAnySubscription
+                    ? 'Manage Subscription'
+                    : 'Upgrade to Premium',
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? DarkColors.textPrimary
+                      : LightColors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                switch (subscriptionProvider.tier) {
+                  SubscriptionTier.legacy => 'Legacy Collection is active',
+                  SubscriptionTier.heritage => 'Heritage Keeper is active',
+                  SubscriptionTier.none =>
+                    'Unlock family plans, exports, and premium features',
+                },
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: 14,
+                  color: isDark
+                      ? DarkColors.textSecondary
+                      : LightColors.textSecondary,
+                ),
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: isDark ? DarkColors.textMuted : LightColors.textMuted,
+              ),
+              onTap: () => _openSubscription(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Family Invite Code Section (if user has a family)
           if (hasFamily && _family != null) ...[
             Card(
@@ -715,11 +821,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(
-                          Icons.group,
-                          color: brandPrimary,
-                          size: 24,
-                        ),
+                        Icon(Icons.group, color: brandPrimary, size: 24),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -728,13 +830,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               fontFamily: 'Playfair Display',
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                              color: isDark
+                                  ? DarkColors.textPrimary
+                                  : LightColors.textPrimary,
                             ),
                           ),
                         ),
                         if (user?.isKeeper == true)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: brandPrimary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
@@ -751,9 +858,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           )
                         else if (user?.isMember == true)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: (isDark ? DarkColors.textSecondary : LightColors.textSecondary).withValues(alpha: 0.1),
+                              color:
+                                  (isDark
+                                          ? DarkColors.textSecondary
+                                          : LightColors.textSecondary)
+                                      .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -762,18 +876,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 fontFamily: 'Manrope',
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                                color: isDark
+                                    ? DarkColors.textSecondary
+                                    : LightColors.textSecondary,
                               ),
                             ),
                           ),
                       ],
                     ),
-                    if (_family!.description != null && _family!.description!.isNotEmpty) ...[
+                    if (_family!.description != null &&
+                        _family!.description!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isDark ? DarkColors.surfaceMuted : Colors.grey[100],
+                          color: isDark
+                              ? DarkColors.surfaceMuted
+                              : Colors.grey[100],
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -781,7 +900,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: TextStyle(
                             fontFamily: 'Manrope',
                             fontSize: 14,
-                            color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                            color: isDark
+                                ? DarkColors.textSecondary
+                                : LightColors.textSecondary,
                           ),
                         ),
                       ),
@@ -793,7 +914,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         fontFamily: 'Manrope',
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                        color: isDark
+                            ? DarkColors.textSecondary
+                            : LightColors.textSecondary,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -801,7 +924,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isDark ? DarkColors.surfaceMuted : Colors.grey[100],
+                        color: isDark
+                            ? DarkColors.surfaceMuted
+                            : Colors.grey[100],
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: brandPrimary.withValues(alpha: 0.3),
@@ -819,7 +944,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 2,
-                                color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                                color: isDark
+                                    ? DarkColors.textPrimary
+                                    : LightColors.textPrimary,
                               ),
                             ),
                           ),
@@ -834,7 +961,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               minWidth: 40,
                               minHeight: 40,
                             ),
-                            onPressed: () => _copyInviteCode(_family!.inviteCode),
+                            onPressed: () =>
+                                _copyInviteCode(_family!.inviteCode),
                           ),
                         ],
                       ),
@@ -870,7 +998,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: _handleLeaveFamily,
-                        icon: Icon(Icons.exit_to_app, size: 20, color: Colors.red),
+                        icon: Icon(
+                          Icons.exit_to_app,
+                          size: 20,
+                          color: Colors.red,
+                        ),
                         label: Text(
                           'Leave Family',
                           style: TextStyle(
@@ -881,7 +1013,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
+                          side: BorderSide(
+                            color: Colors.red.withValues(alpha: 0.5),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -897,191 +1031,210 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Family Members Section (All members can see)
           if (hasFamily && _family != null) ...[
             const SizedBox(height: 16),
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: isDark ? DarkColors.border : LightColors.border,
-                    width: 1,
-                  ),
-                ),
-                color: isDark ? DarkColors.surface : LightColors.surface,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.people,
-                            color: brandPrimary,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Family Members',
-                            style: TextStyle(
-                              fontFamily: 'Playfair Display',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      if (_isLoadingMembers)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(brandPrimary),
-                            ),
-                          ),
-                        )
-                        else if (_familyMembers.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text(
-                              'No members found',
-                              style: TextStyle(
-                                fontFamily: 'Manrope',
-                                fontSize: 14,
-                                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          )
-                        else
-                          ..._familyMembers.map((member) {
-                          final memberAvatar = member.avatar;
-                          final memberName = member.nickname ?? member.name;
-                          final memberEmail = member.email;
-                          final isMemberKeeper = member.isKeeper;
-                          
-                          // Decode base64 avatar if it's a data URI
-                          ImageProvider? avatarImage;
-                          if (memberAvatar != null && memberAvatar.isNotEmpty) {
-                            if (memberAvatar.startsWith('data:image')) {
-                              // Base64 data URI
-                              try {
-                                final base64Data = memberAvatar.contains(',')
-                                    ? memberAvatar.split(',').last
-                                    : memberAvatar;
-                                final imageBytes = base64Decode(base64Data);
-                                avatarImage = MemoryImage(imageBytes);
-                              } catch (e) {
-                                debugPrint('Error decoding avatar: $e');
-                                avatarImage = null;
-                              }
-                            } else {
-                              // Regular URL
-                              avatarImage = NetworkImage(memberAvatar);
-                            }
-                          }
-                          
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                // Avatar
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: brandPrimary.withValues(alpha: 0.1),
-                                  backgroundImage: avatarImage,
-                                  child: avatarImage == null
-                                      ? Text(
-                                          memberName.isNotEmpty 
-                                              ? memberName.substring(0, 1).toUpperCase()
-                                              : '?',
-                                          style: TextStyle(
-                                            fontFamily: 'Manrope',
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: brandPrimary,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                // Name and email
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              memberName,
-                                              style: TextStyle(
-                                                fontFamily: 'Manrope',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (isMemberKeeper)
-                                            Padding(
-                                              padding: const EdgeInsets.only(left: 8),
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: brandPrimary.withValues(alpha: 0.1),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  'Keeper',
-                                                  style: TextStyle(
-                                                    fontFamily: 'Manrope',
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: brandPrimary,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        memberEmail,
-                                        style: TextStyle(
-                                          fontFamily: 'Manrope',
-                                          fontSize: 12,
-                                          color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (user?.isKeeper == true && 
-                                    !isMemberKeeper && 
-                                    member.id != user?.id)
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.red,
-                                      size: 20,
-                                    ),
-                                    onPressed: () => _removeMember(member),
-                                    tooltip: 'Remove member',
-                                  ),
-                              ],
-                            ),
-                          );
-                        }),
-                    ],
-                  ),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: isDark ? DarkColors.border : LightColors.border,
+                  width: 1,
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
+              color: isDark ? DarkColors.surface : LightColors.surface,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.people, color: brandPrimary, size: 24),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Family Members',
+                          style: TextStyle(
+                            fontFamily: 'Playfair Display',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? DarkColors.textPrimary
+                                : LightColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (_isLoadingMembers)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              brandPrimary,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (_familyMembers.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          'No members found',
+                          style: TextStyle(
+                            fontFamily: 'Manrope',
+                            fontSize: 14,
+                            color: isDark
+                                ? DarkColors.textSecondary
+                                : LightColors.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      ..._familyMembers.map((member) {
+                        final memberAvatar = member.avatar;
+                        final memberName = member.nickname ?? member.name;
+                        final memberEmail = member.email;
+                        final isMemberKeeper = member.isKeeper;
+
+                        // Decode base64 avatar if it's a data URI
+                        ImageProvider? avatarImage;
+                        if (memberAvatar != null && memberAvatar.isNotEmpty) {
+                          if (memberAvatar.startsWith('data:image')) {
+                            // Base64 data URI
+                            try {
+                              final base64Data = memberAvatar.contains(',')
+                                  ? memberAvatar.split(',').last
+                                  : memberAvatar;
+                              final imageBytes = base64Decode(base64Data);
+                              avatarImage = MemoryImage(imageBytes);
+                            } catch (e) {
+                              debugPrint('Error decoding avatar: $e');
+                              avatarImage = null;
+                            }
+                          } else {
+                            // Regular URL
+                            avatarImage = NetworkImage(memberAvatar);
+                          }
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              // Avatar
+                              CircleAvatar(
+                                radius: 24,
+                                backgroundColor: brandPrimary.withValues(
+                                  alpha: 0.1,
+                                ),
+                                backgroundImage: avatarImage,
+                                child: avatarImage == null
+                                    ? Text(
+                                        memberName.isNotEmpty
+                                            ? memberName
+                                                  .substring(0, 1)
+                                                  .toUpperCase()
+                                            : '?',
+                                        style: TextStyle(
+                                          fontFamily: 'Manrope',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: brandPrimary,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              // Name and email
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            memberName,
+                                            style: TextStyle(
+                                              fontFamily: 'Manrope',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark
+                                                  ? DarkColors.textPrimary
+                                                  : LightColors.textPrimary,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (isMemberKeeper)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 8,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: brandPrimary.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                'Keeper',
+                                                style: TextStyle(
+                                                  fontFamily: 'Manrope',
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: brandPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      memberEmail,
+                                      style: TextStyle(
+                                        fontFamily: 'Manrope',
+                                        fontSize: 12,
+                                        color: isDark
+                                            ? DarkColors.textSecondary
+                                            : LightColors.textSecondary,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (user?.isKeeper == true &&
+                                  !isMemberKeeper &&
+                                  member.id != user?.id)
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => _removeMember(member),
+                                  tooltip: 'Remove member',
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Theme Toggle
           Card(
             elevation: 0,
@@ -1109,7 +1262,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fontFamily: 'Manrope',
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                  color: isDark
+                      ? DarkColors.textPrimary
+                      : LightColors.textPrimary,
                 ),
               ),
               subtitle: Text(
@@ -1117,7 +1272,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontSize: 14,
-                  color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                  color: isDark
+                      ? DarkColors.textSecondary
+                      : LightColors.textSecondary,
                 ),
               ),
               trailing: Switch(
@@ -1145,7 +1302,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: Icon(
                 Icons.person_outline,
-                color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                color: isDark
+                    ? DarkColors.textPrimary
+                    : LightColors.textPrimary,
               ),
               title: Text(
                 'Edit Profile',
@@ -1153,7 +1312,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fontFamily: 'Manrope',
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                  color: isDark
+                      ? DarkColors.textPrimary
+                      : LightColors.textPrimary,
                 ),
               ),
               trailing: Icon(
@@ -1183,10 +1344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             color: isDark ? DarkColors.surface : LightColors.surface,
             child: ListTile(
-              leading: Icon(
-                Icons.delete_outline,
-                color: Colors.red,
-              ),
+              leading: Icon(Icons.delete_outline, color: Colors.red),
               title: Text(
                 'Delete Account',
                 style: TextStyle(
@@ -1219,7 +1377,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: Icon(
                 Icons.notifications_outlined,
-                color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                color: isDark
+                    ? DarkColors.textPrimary
+                    : LightColors.textPrimary,
               ),
               title: Text(
                 'Notifications',
@@ -1227,7 +1387,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fontFamily: 'Manrope',
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                  color: isDark
+                      ? DarkColors.textPrimary
+                      : LightColors.textPrimary,
                 ),
               ),
               trailing: Icon(
@@ -1259,7 +1421,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: Icon(
                 Icons.info_outline,
-                color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                color: isDark
+                    ? DarkColors.textPrimary
+                    : LightColors.textPrimary,
               ),
               title: Text(
                 'About',
@@ -1267,7 +1431,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fontFamily: 'Manrope',
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+                  color: isDark
+                      ? DarkColors.textPrimary
+                      : LightColors.textPrimary,
                 ),
               ),
               subtitle: Text(
@@ -1275,7 +1441,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontSize: 14,
-                  color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                  color: isDark
+                      ? DarkColors.textSecondary
+                      : LightColors.textSecondary,
                 ),
               ),
               trailing: Icon(
@@ -1305,10 +1473,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'assets/icons/LogOut.svg',
                 width: 24,
                 height: 24,
-                colorFilter: ColorFilter.mode(
-                  Colors.red,
-                  BlendMode.srcIn,
-                ),
+                colorFilter: ColorFilter.mode(Colors.red, BlendMode.srcIn),
               ),
               title: Text(
                 'Logout',
@@ -1333,18 +1498,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       TextButton(
                         onPressed: () async {
                           Navigator.pop(dialogContext);
-                          
+
                           try {
                             // Perform logout
                             await sessionManager.logout();
-                            
+
                             // Small delay to ensure logout completes
-                            await Future.delayed(const Duration(milliseconds: 100));
-                            
+                            await Future.delayed(
+                              const Duration(milliseconds: 100),
+                            );
+
                             // Navigate to login screen using root navigator
                             // This ensures we clear the entire navigation stack
                             if (mounted) {
-                              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                              Navigator.of(
+                                context,
+                                rootNavigator: true,
+                              ).pushNamedAndRemoveUntil(
                                 '/login',
                                 (route) => false,
                               );
@@ -1352,7 +1522,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           } catch (e) {
                             // Even if logout fails, try to navigate to login
                             if (mounted) {
-                              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                              Navigator.of(
+                                context,
+                                rootNavigator: true,
+                              ).pushNamedAndRemoveUntil(
                                 '/login',
                                 (route) => false,
                               );

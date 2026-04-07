@@ -33,8 +33,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final bg = isDark ? DarkColors.background : LightColors.background;
     final surface = isDark ? DarkColors.surface : LightColors.surface;
-    final textPrimary = isDark ? DarkColors.textPrimary : LightColors.textPrimary;
-    final textSecondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+    final textPrimary = isDark
+        ? DarkColors.textPrimary
+        : LightColors.textPrimary;
+    final textSecondary = isDark
+        ? DarkColors.textSecondary
+        : LightColors.textSecondary;
 
     return Scaffold(
       backgroundColor: bg,
@@ -73,7 +77,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
       body: sub.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _buildContent(context, sub, surface, textPrimary, textSecondary, isDark),
+          : _buildContent(
+              context,
+              sub,
+              surface,
+              textPrimary,
+              textSecondary,
+              isDark,
+            ),
     );
   }
 
@@ -220,7 +231,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           AnimatedAlign(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
-            alignment: _showAnnual ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: _showAnnual
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
             child: FractionallySizedBox(
               widthFactor: 0.5,
               child: Container(
@@ -271,7 +284,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: _showAnnual
                                 ? Colors.white.withOpacity(0.25)
@@ -320,8 +335,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final borderColor = isSelected
         ? brandPrimary
         : highlight
-            ? brandAccent
-            : (isDark ? DarkColors.border : LightColors.border);
+        ? brandAccent
+        : (isDark ? DarkColors.border : LightColors.border);
 
     return GestureDetector(
       onTap: () => setState(() => _selectedTier = tierIndex),
@@ -330,17 +345,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         decoration: BoxDecoration(
           color: surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: borderColor,
-            width: isSelected ? 2 : 1.5,
-          ),
+          border: Border.all(color: borderColor, width: isSelected ? 2 : 1.5),
           boxShadow: isSelected
               ? [
                   BoxShadow(
                     color: brandPrimary.withOpacity(0.15),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ]
               : [],
         ),
@@ -399,13 +411,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           border: Border.all(
                             color: isSelected
                                 ? brandPrimary
-                                : (isDark ? DarkColors.border : LightColors.border),
+                                : (isDark
+                                      ? DarkColors.border
+                                      : LightColors.border),
                             width: 2,
                           ),
                         ),
                         child: isSelected
-                            ? const Icon(Icons.check,
-                                color: Colors.white, size: 14)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 14,
+                              )
                             : null,
                       ),
                     ],
@@ -449,7 +466,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: brandSecondary.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(8),
@@ -476,8 +495,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.check_circle_outline,
-                              size: 16, color: brandSecondary),
+                          const Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                            color: brandSecondary,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -503,8 +525,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildCtaButton(BuildContext context, SubscriptionProvider sub) {
-    final tierName =
-        _selectedTier == 0 ? 'Heritage Keeper' : 'Legacy Collection';
+    final tierName = _selectedTier == 0
+        ? 'Heritage Keeper'
+        : 'Legacy Collection';
     final price = _showAnnual
         ? (_selectedTier == 0 ? '\$99.99/year' : '\$199.99/year')
         : (_selectedTier == 0 ? '\$9.99/month' : '\$19.99/month');
@@ -515,16 +538,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         backgroundColor: brandPrimary,
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       ),
       child: sub.isLoading
           ? const SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
-                  color: Colors.white, strokeWidth: 2),
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
             )
           : Text(
               'Get $tierName — $price',
@@ -539,26 +562,49 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  Future<void> _purchase(
-      BuildContext context, SubscriptionProvider sub) async {
+  Future<void> _purchase(BuildContext context, SubscriptionProvider sub) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final offerings = sub.offerings;
-    if (offerings == null) return;
+    if (offerings == null) {
+      _showPurchaseMessage(
+        context,
+        'Subscription plans are still loading. Please try again in a moment.',
+        isError: true,
+      );
+      await sub.loadSubscriptionStatus();
+      return;
+    }
 
     final offeringId = _selectedTier == 0
         ? 'heritage_keeper'
         : 'legacy_collection';
-    final offering = offerings.getOffering(offeringId);
-    if (offering == null) return;
+    final offering = offerings.getOffering(offeringId) ?? offerings.current;
+    if (offering == null) {
+      _showPurchaseMessage(
+        context,
+        'No subscription plans are available right now. Please check RevenueCat and App Store Connect configuration.',
+        isError: true,
+      );
+      return;
+    }
 
-    final package = _showAnnual
-        ? offering.annual
-        : offering.monthly;
-    if (package == null) return;
+    final package = _showAnnual ? offering.annual : offering.monthly;
+    if (package == null) {
+      _showPurchaseMessage(
+        context,
+        _showAnnual
+            ? 'Annual pricing is not available for this plan yet.'
+            : 'Monthly pricing is not available for this plan yet.',
+        isError: true,
+      );
+      return;
+    }
 
     final success = await sub.purchase(package);
     if (success && mounted) {
-      Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
+      navigator.pop(true);
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Welcome to Legacy Table Premium!'),
           backgroundColor: brandSecondary,
@@ -568,11 +614,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<void> _restore(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final sub = context.read<SubscriptionProvider>();
     final restored = await sub.restore();
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           restored
@@ -580,6 +627,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               : 'No previous purchases found.',
         ),
         backgroundColor: restored ? brandSecondary : Colors.orange,
+      ),
+    );
+  }
+
+  void _showPurchaseMessage(
+    BuildContext context,
+    String message, {
+    bool isError = false,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : brandSecondary,
       ),
     );
   }
