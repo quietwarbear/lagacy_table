@@ -14,7 +14,7 @@ echo "Repository root: $CI_PRIMARY_REPOSITORY_PATH"
 # 1. Install Flutter SDK
 # -------------------------------------------------------
 # Use the stable channel. Pin to a specific version if needed.
-FLUTTER_VERSION="3.29.3"
+FLUTTER_VERSION="3.41.6"
 echo ">>> Installing Flutter SDK $FLUTTER_VERSION..."
 
 git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$HOME/flutter"
