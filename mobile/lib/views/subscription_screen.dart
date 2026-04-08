@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/subscription_provider.dart';
+import '../services/storage_service.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   /// If true, user arrived here from a gated feature (show "Continue for free" option)
@@ -18,9 +19,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   // 0 = Heritage Keeper, 1 = Legacy Collection
   int _selectedTier = 0;
 
+  void _exitScreen([bool purchased = false]) {
+    if (widget.fromGate) {
+      Navigator.pop(context, purchased);
+      return;
+    }
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+  }
+
   @override
   void initState() {
     super.initState();
+    StorageService().setPendingSubscriptionAfterRegister(false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SubscriptionProvider>().loadSubscriptionStatus();
     });
@@ -59,11 +70,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               )
             : IconButton(
                 icon: Icon(Icons.close, color: textPrimary),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => _exitScreen(),
               ),
         actions: [
           TextButton(
-            onPressed: sub.isRestoring ? null : () => _restore(context),
+            onPressed: sub.isRestoring ? null : _restore,
             child: Text(
               sub.isRestoring ? 'Restoring…' : 'Restore',
               style: TextStyle(
@@ -533,7 +544,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         : (_selectedTier == 0 ? '\$9.99/month' : '\$19.99/month');
 
     return ElevatedButton(
-      onPressed: sub.isLoading ? null : () => _purchase(context, sub),
+      onPressed: sub.isLoading ? null : () => _purchase(sub),
       style: ElevatedButton.styleFrom(
         backgroundColor: brandPrimary,
         foregroundColor: Colors.white,
@@ -562,9 +573,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  Future<void> _purchase(BuildContext context, SubscriptionProvider sub) async {
-    final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _purchase(SubscriptionProvider sub) async {
     final offerings = sub.offerings;
     if (offerings == null) {
       _showPurchaseMessage(
@@ -603,8 +612,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     final success = await sub.purchase(package);
     if (success && mounted) {
-      navigator.pop(true);
-      messenger.showSnackBar(
+      _exitScreen(true);
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Welcome to Legacy Table Premium!'),
           backgroundColor: brandSecondary,
@@ -613,13 +622,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  Future<void> _restore(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _restore() async {
     final sub = context.read<SubscriptionProvider>();
     final restored = await sub.restore();
     if (!mounted) return;
 
-    messenger.showSnackBar(
+    if (restored && !widget.fromGate) {
+      _exitScreen(true);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           restored

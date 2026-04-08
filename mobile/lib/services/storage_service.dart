@@ -17,6 +17,8 @@ class StorageService {
   static const String _keyUserEmail = 'user_email';
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyOnboardingCompleted = 'onboarding_completed';
+  static const String _keyPendingSubscriptionAfterRegister =
+      'pending_subscription_after_register';
   static const String _keyFamilyId = 'family_id';
   static const String _keyUserRole = 'user_role';
 
@@ -81,6 +83,18 @@ class StorageService {
   Future<bool> isOnboardingCompleted() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyOnboardingCompleted) ?? false;
+  }
+
+  /// Mark whether a newly registered user should be sent to subscription next.
+  Future<void> setPendingSubscriptionAfterRegister(bool pending) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyPendingSubscriptionAfterRegister, pending);
+  }
+
+  /// Get whether a newly registered user should be sent to subscription next.
+  Future<bool> getPendingSubscriptionAfterRegister() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyPendingSubscriptionAfterRegister) ?? false;
   }
 
   /// Store family ID

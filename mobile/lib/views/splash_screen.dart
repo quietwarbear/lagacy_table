@@ -31,11 +31,15 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final storageService = StorageService();
     final isOnboardingCompleted = await storageService.isOnboardingCompleted();
+    final pendingSubscription =
+        await storageService.getPendingSubscriptionAfterRegister();
 
     if (mounted) {
       if (!isOnboardingCompleted) {
         // First time user, show onboarding
         Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else if (sessionManager.isLoggedIn && pendingSubscription) {
+        Navigator.of(context).pushReplacementNamed('/subscription');
       } else if (sessionManager.isLoggedIn) {
         // Use validated session state, not raw storage flag
         Navigator.of(context).pushReplacementNamed('/home');

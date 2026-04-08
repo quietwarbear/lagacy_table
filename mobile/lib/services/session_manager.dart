@@ -33,6 +33,16 @@ class SessionManager extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
 
+  bool _isNewlyCreatedUser(String? createdAt) {
+    if (createdAt == null) return false;
+
+    final createdAtDate = DateTime.tryParse(createdAt)?.toUtc();
+    if (createdAtDate == null) return false;
+
+    final age = DateTime.now().toUtc().difference(createdAtDate);
+    return !age.isNegative && age <= const Duration(minutes: 2);
+  }
+
   /// Initialize session - check if user is already logged in
   Future<void> _initialize() async {
     _isLoading = true;
@@ -118,7 +128,7 @@ class SessionManager extends ChangeNotifier {
   }
 
   /// Google Sign-In
-  Future<void> googleLogin(String idToken) async {
+  Future<bool> googleLogin(String idToken) async {
     _isLoading = true;
     notifyListeners();
 
@@ -143,6 +153,7 @@ class SessionManager extends ChangeNotifier {
 
       _currentUser = loginResponse.user;
       _isLoggedIn = true;
+      return _isNewlyCreatedUser(loginResponse.user.createdAt);
     } catch (e) {
       if (kDebugMode) {
         print('Google login error: $e');

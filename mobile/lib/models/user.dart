@@ -6,6 +6,7 @@ class User {
   final String? avatar;
   final String? familyId;
   final String? role; // "keeper" | "member" | null
+  final String? createdAt;
 
   User({
     required this.id,
@@ -15,6 +16,7 @@ class User {
     this.avatar,
     this.familyId,
     this.role,
+    this.createdAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class User {
       avatar: json['avatar'],
       familyId: json['family_id'],
       role: json['role'],
+      createdAt: json['created_at'] ?? json['createdAt'],
     );
   }
 
@@ -38,6 +41,7 @@ class User {
       'avatar': avatar,
       'family_id': familyId,
       'role': role,
+      'created_at': createdAt,
     };
   }
 

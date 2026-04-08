@@ -772,18 +772,264 @@ class _RecipeFeedScreenState extends State<RecipeFeedScreen> {
     );
   }
 
-  Widget _buildQuickAction({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
+  Widget _buildSmartToolsSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Smart Recipe Tools',
+          style: TextStyle(
+            fontFamily: 'Playfair Display',
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Bring recipes in the same way the web app does: scan a card or turn a video link into a draft.',
+          style: TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 14,
+            color: isDark
+                ? DarkColors.textSecondary
+                : LightColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 170,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _FeatureCard(
+                title: 'Scan Recipe',
+                description:
+                    'Use a photo of a handwritten card or cookbook page.',
+                icon: Icons.document_scanner_outlined,
+                accent: brandPrimary,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ScanRecipeScreen()),
+                  );
+                },
+              ),
+              const SizedBox(width: 14),
+              _FeatureCard(
+                title: 'Save From Link',
+                description:
+                    'Turn a TikTok, Instagram, or YouTube link into a draft.',
+                icon: Icons.link_outlined,
+                accent: brandSecondary,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SaveFromLinkScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHolidaySection(bool isDark) {
+    if (_isLoadingHolidays) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? DarkColors.surface : LightColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDark ? DarkColors.border : LightColors.border,
+          ),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final summary = _holidaySummary;
+    if (summary == null || summary.upcoming.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? DarkColors.surface : LightColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? DarkColors.border : LightColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: brandAccent.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.celebration_outlined, color: brandPrimary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Celebration Headquarters',
+                      style: TextStyle(
+                        fontFamily: 'Playfair Display',
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: isDark
+                            ? DarkColors.textPrimary
+                            : LightColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_capitalize(summary.season)} season • ${summary.seasonTheme}',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontSize: 13,
+                        color: isDark
+                            ? DarkColors.textSecondary
+                            : LightColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...summary.upcoming.take(4).map((holiday) {
+            final count = summary.holidayRecipeCounts[holiday.name] ?? 0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          HolidayRecipesScreen(holidayName: holiday.name),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? DarkColors.background
+                        : LightColors.background,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              holiday.name,
+                              style: TextStyle(
+                                fontFamily: 'Manrope',
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? DarkColors.textPrimary
+                                    : LightColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${holiday.daysAway ?? 0} days away',
+                              style: TextStyle(
+                                fontFamily: 'Manrope',
+                                fontSize: 13,
+                                color: isDark
+                                    ? DarkColors.textSecondary
+                                    : LightColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: count > 0
+                              ? brandSecondary.withValues(alpha: 0.16)
+                              : brandPrimary.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          count == 1 ? '1 recipe' : '$count recipes',
+                          style: TextStyle(
+                            fontFamily: 'Manrope',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: count > 0 ? brandSecondary : brandPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _FeatureCard({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        width: 200,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDark
               ? DarkColors.surface.withValues(alpha: 0.8)
@@ -795,18 +1041,28 @@ class _RecipeFeedScreenState extends State<RecipeFeedScreen> {
                 : LightColors.border.withValues(alpha: 0.5),
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
+            Icon(icon, size: 28, color: accent),
+            const SizedBox(height: 12),
             Text(
-              label,
+              title,
               style: TextStyle(
                 fontFamily: 'Manrope',
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
                 color: isDark ? DarkColors.textPrimary : LightColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: 12,
+                color: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
+                height: 1.3,
               ),
             ),
           ],

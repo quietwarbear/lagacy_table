@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config/app_theme.dart';
 import '../providers/theme_provider.dart';
 import '../services/session_manager.dart';
+import '../services/storage_service.dart';
 import '../widgets/styled_snackbar.dart';
 import 'register_screen.dart';
 
@@ -15,14 +17,26 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const String _iosGoogleClientId =
+      '229052236659-h4op49fi71nktbtrtp0vjdemaaputub7.apps.googleusercontent.com';
+  static const String _webGoogleClientId =
+      '229052236659-t8h924k1gj6llotoebdarle2v5deet0q.apps.googleusercontent.com';
+
   final _formKey = GlobalKey<FormState>();
+  final StorageService _storageService = StorageService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    clientId: defaultTargetPlatform == TargetPlatform.iOS
+        ? _iosGoogleClientId
+        : null,
+    serverClientId: _webGoogleClientId,
+  );
 
   @override
   void dispose() {
@@ -97,12 +111,17 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Failed to get Google ID token');
       }
 
-      await sessionManager.googleLogin(idToken);
+      final isNewGoogleUser = await sessionManager.googleLogin(idToken);
+
+      if (isNewGoogleUser) {
+        await _storageService.setPendingSubscriptionAfterRegister(true);
+      }
 
       if (mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/home', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          isNewGoogleUser ? '/subscription' : '/home',
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {

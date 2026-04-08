@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/theme_provider.dart';
 import '../services/session_manager.dart';
+import '../services/storage_service.dart';
 import '../widgets/styled_snackbar.dart';
 import 'login_screen.dart';
 
@@ -14,6 +15,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final StorageService _storageService = StorageService();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -55,10 +57,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ? null 
             : _nicknameController.text.trim(),
       );
+      await _storageService.setPendingSubscriptionAfterRegister(true);
 
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil(
-          '/home',
+          '/subscription',
           (route) => false,
         );
       }
