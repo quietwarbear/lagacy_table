@@ -41,8 +41,8 @@ flutter pub get
 # -------------------------------------------------------
 # 4. Generate iOS build files
 # -------------------------------------------------------
-echo ">>> Generating iOS build files..."
-flutter build ios --config-only --release --no-codesign
+echo ">>> Building iOS release (generates App.framework)..."
+flutter build ios --release --no-codesign
 
 # -------------------------------------------------------
 # 5. Install CocoaPods dependencies (clean install)
