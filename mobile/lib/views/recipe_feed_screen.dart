@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../config/app_theme.dart';
 import '../models/recipe.dart';
 import '../models/holiday.dart';
@@ -17,6 +18,7 @@ import 'notifications_screen.dart';
 import 'add_recipe_screen.dart';
 import 'scan_recipe_screen.dart';
 import 'save_from_link_screen.dart';
+import 'voice_recipe_screen.dart';
 import 'holiday_recipes_screen.dart';
 
 class RecipeFeedScreen extends StatefulWidget {
@@ -220,10 +222,44 @@ class _RecipeFeedScreenState extends State<RecipeFeedScreen> {
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                     child: Column(
                       children: [
-                        // Notification icon row
+                        // Credits + Notification icon row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            // AI Credits badge
+                            Consumer<SubscriptionProvider>(
+                              builder: (context, sub, _) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.of(context).pushNamed('/subscription');
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: brandPrimary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.auto_awesome, size: 14, color: brandPrimary),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${sub.creditsBalance}',
+                                          style: TextStyle(
+                                            fontFamily: 'Manrope',
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: brandPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 4),
                             IconButton(
                               onPressed: _openNotifications,
                               icon: Stack(
@@ -402,9 +438,10 @@ class _RecipeFeedScreenState extends State<RecipeFeedScreen> {
                               color: brandPrimary,
                               isDark: isDark,
                               onTap: () {
-                                // TODO: Wire up once ScanRecipeScreen API is fixed
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Scan Recipe coming soon!')),
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ScanRecipeScreen(),
+                                  ),
                                 );
                               },
                             ),
@@ -414,8 +451,10 @@ class _RecipeFeedScreenState extends State<RecipeFeedScreen> {
                               color: const Color(0xFFD97706),
                               isDark: isDark,
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Voice Recipe coming soon!')),
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const VoiceRecipeScreen(),
+                                  ),
                                 );
                               },
                             ),
@@ -425,9 +464,10 @@ class _RecipeFeedScreenState extends State<RecipeFeedScreen> {
                               color: const Color(0xFFDB2777),
                               isDark: isDark,
                               onTap: () {
-                                // TODO: Wire up once SaveFromLinkScreen API is fixed
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Save from Link coming soon!')),
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const SaveFromLinkScreen(),
+                                  ),
                                 );
                               },
                             ),

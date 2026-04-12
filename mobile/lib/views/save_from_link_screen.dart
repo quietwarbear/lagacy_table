@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_theme.dart';
+import '../services/api_service.dart';
 import '../widgets/styled_snackbar.dart';
+import 'add_recipe_screen.dart';
 
 class SaveFromLinkScreen extends StatefulWidget {
   const SaveFromLinkScreen({super.key});
@@ -30,17 +32,47 @@ class _SaveFromLinkScreenState extends State<SaveFromLinkScreen> {
       return;
     }
 
+    // Basic URL validation
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      StyledSnackBar.showWarning(
+        context,
+        'Please enter a valid URL starting with http:// or https://',
+      );
+      return;
+    }
+
     setState(() {
       _isImporting = true;
     });
 
     try {
-      // TODO: Wire up AI save-from-link API when backend is ready
-      await Future.delayed(const Duration(seconds: 1));
+      final result = await apiService.ai.saveFromLink(url);
+
       if (!mounted) return;
-      StyledSnackBar.showWarning(
-        context,
-        'Save from link is coming soon! The AI service is being set up.',
+
+      // Show success with credits remaining
+      if (result.creditsRemaining != null) {
+        StyledSnackBar.showSuccess(
+          context,
+          'Recipe imported! ${result.creditsRemaining} credits remaining.',
+        );
+      }
+
+      // Navigate to AddRecipeScreen with the imported recipe pre-filled
+      final recipe = result.recipe;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => AddRecipeScreen(
+            recipe: null,
+            initialTitle: recipe.title,
+            initialIngredients: recipe.ingredients,
+            initialInstructions: recipe.instructions,
+            initialCookingTime: recipe.cookingTime,
+            initialServings: recipe.servings,
+            initialCategory: recipe.category,
+            initialDifficulty: recipe.difficulty,
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -77,6 +109,27 @@ class _SaveFromLinkScreenState extends State<SaveFromLinkScreen> {
                 color: isDark
                     ? DarkColors.textSecondary
                     : LightColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: brandPrimary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, size: 16, color: brandPrimary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Uses 1 AI credit',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: brandPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
@@ -133,7 +186,7 @@ class _SaveFromLinkScreenState extends State<SaveFromLinkScreen> {
                       )
                     : const Icon(Icons.link_outlined),
                 label: Text(
-                  _isImporting ? 'Importing...' : 'Create Draft From Link',
+                  _isImporting ? 'Importing with AI...' : 'Create Draft From Link',
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),

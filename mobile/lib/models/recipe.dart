@@ -94,6 +94,24 @@ class CreateRecipeRequest {
     this.difficulty,
   });
 
+  factory CreateRecipeRequest.fromJson(Map<String, dynamic> json) {
+    return CreateRecipeRequest(
+      title: json['title'] ?? 'Untitled Recipe',
+      ingredients: json['ingredients'] != null
+          ? List<String>.from(json['ingredients'])
+          : [],
+      instructions: json['instructions'] ?? '',
+      story: json['story'],
+      photos: json['photos'] != null
+          ? List<String>.from(json['photos'])
+          : null,
+      cookingTime: json['cooking_time'] ?? json['cookingTime'],
+      servings: json['servings'],
+      category: json['category'],
+      difficulty: json['difficulty'],
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'title': title,

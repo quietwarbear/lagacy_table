@@ -1407,7 +1407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // About
+          // Legal & About
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -1418,41 +1418,116 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             color: isDark ? DarkColors.surface : LightColors.surface,
-            child: ListTile(
-              leading: Icon(
-                Icons.info_outline,
-                color: isDark
-                    ? DarkColors.textPrimary
-                    : LightColors.textPrimary,
-              ),
-              title: Text(
-                'About',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? DarkColors.textPrimary
-                      : LightColors.textPrimary,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.description_outlined,
+                    color: isDark
+                        ? DarkColors.textPrimary
+                        : LightColors.textPrimary,
+                  ),
+                  title: Text(
+                    'Terms of Use',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? DarkColors.textPrimary
+                          : LightColors.textPrimary,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: isDark ? DarkColors.textMuted : LightColors.textMuted,
+                  ),
+                  onTap: () {
+                    launchUrl(
+                      Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
                 ),
-              ),
-              subtitle: Text(
-                'Legacy Table Family Recipes',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 14,
-                  color: isDark
-                      ? DarkColors.textSecondary
-                      : LightColors.textSecondary,
+                Divider(
+                  height: 1,
+                  color: isDark ? DarkColors.border : LightColors.border,
                 ),
-              ),
-              trailing: Icon(
-                Icons.chevron_right,
-                color: isDark ? DarkColors.textMuted : LightColors.textMuted,
-              ),
-              onTap: () {
-                // TODO: Show about dialog
-              },
+                ListTile(
+                  leading: Icon(
+                    Icons.privacy_tip_outlined,
+                    color: isDark
+                        ? DarkColors.textPrimary
+                        : LightColors.textPrimary,
+                  ),
+                  title: Text(
+                    'Privacy Policy',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? DarkColors.textPrimary
+                          : LightColors.textPrimary,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: isDark ? DarkColors.textMuted : LightColors.textMuted,
+                  ),
+                  onTap: () {
+                    launchUrl(
+                      Uri.parse('https://legacytable.app/privacy-policy'),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
+                ),
+                Divider(
+                  height: 1,
+                  color: isDark ? DarkColors.border : LightColors.border,
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.info_outline,
+                    color: isDark
+                        ? DarkColors.textPrimary
+                        : LightColors.textPrimary,
+                  ),
+                  title: Text(
+                    'About',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? DarkColors.textPrimary
+                          : LightColors.textPrimary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Legacy Table Family Recipes v2.0.0',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 14,
+                      color: isDark
+                          ? DarkColors.textSecondary
+                          : LightColors.textSecondary,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: isDark ? DarkColors.textMuted : LightColors.textMuted,
+                  ),
+                  onTap: () {
+                    showAboutDialog(
+                      context: context,
+                      applicationName: 'Legacy Table',
+                      applicationVersion: '2.0.0',
+                      applicationLegalese: '© 2026 Ubuntu Market LLC. All rights reserved.',
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:device_preview/device_preview.dart';
 import 'config/app_theme.dart';
 import 'providers/theme_provider.dart';
 import 'providers/subscription_provider.dart';
@@ -22,12 +21,7 @@ void main() async {
     debugPrintStack(stackTrace: stackTrace);
   }
 
-  runApp(
-    DevicePreview(
-      enabled: false, // kDebugMode && true,
-      builder: (context) => const MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -44,8 +38,6 @@ class MyApp extends StatelessWidget {
         builder: (context, themeProvider, child) {
           if (!themeProvider.isInitialized) {
             return MaterialApp(
-              locale: DevicePreview.locale(context),
-              builder: DevicePreview.appBuilder,
               debugShowCheckedModeBanner: false,
               title: 'Legacy Table',
               theme: AppTheme.lightTheme,
@@ -57,8 +49,6 @@ class MyApp extends StatelessWidget {
           }
 
           return MaterialApp(
-            locale: DevicePreview.locale(context),
-            builder: DevicePreview.appBuilder,
             debugShowCheckedModeBanner: false,
             title: 'Legacy Table',
             theme: AppTheme.lightTheme,

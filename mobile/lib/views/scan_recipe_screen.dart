@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../config/app_theme.dart';
+import '../services/api_service.dart';
 import '../widgets/styled_snackbar.dart';
+import 'add_recipe_screen.dart';
 
 class ScanRecipeScreen extends StatefulWidget {
   const ScanRecipeScreen({super.key});
@@ -69,12 +71,34 @@ class _ScanRecipeScreenState extends State<ScanRecipeScreen> {
     });
 
     try {
-      // TODO: Wire up AI scan API when backend is ready
-      await Future.delayed(const Duration(seconds: 1));
+      final imageDataUrl = await _encodeImageToDataUrl(_selectedImage!);
+      final result = await apiService.ai.scanRecipe(imageDataUrl);
+
       if (!mounted) return;
-      StyledSnackBar.showWarning(
-        context,
-        'Recipe scanning is coming soon! The AI service is being set up.',
+
+      // Show success with credits remaining
+      if (result.creditsRemaining != null) {
+        StyledSnackBar.showSuccess(
+          context,
+          'Recipe scanned! ${result.creditsRemaining} credits remaining.',
+        );
+      }
+
+      // Navigate to AddRecipeScreen with the scanned recipe pre-filled
+      final recipe = result.recipe;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => AddRecipeScreen(
+            recipe: null, // Not editing an existing recipe
+            initialTitle: recipe.title,
+            initialIngredients: recipe.ingredients,
+            initialInstructions: recipe.instructions,
+            initialCookingTime: recipe.cookingTime,
+            initialServings: recipe.servings,
+            initialCategory: recipe.category,
+            initialDifficulty: recipe.difficulty,
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -111,6 +135,27 @@ class _ScanRecipeScreenState extends State<ScanRecipeScreen> {
                 color: isDark
                     ? DarkColors.textSecondary
                     : LightColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: brandPrimary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, size: 16, color: brandPrimary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Uses 1 AI credit',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: brandPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
@@ -162,7 +207,7 @@ class _ScanRecipeScreenState extends State<ScanRecipeScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _pickImage(ImageSource.gallery),
+                    onPressed: _isScanning ? null : () => _pickImage(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library_outlined),
                     label: const Text('Choose Photo'),
                   ),
@@ -170,7 +215,7 @@ class _ScanRecipeScreenState extends State<ScanRecipeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _pickImage(ImageSource.camera),
+                    onPressed: _isScanning ? null : () => _pickImage(ImageSource.camera),
                     icon: const Icon(Icons.camera_alt_outlined),
                     label: const Text('Take Photo'),
                   ),
@@ -194,7 +239,7 @@ class _ScanRecipeScreenState extends State<ScanRecipeScreen> {
                         ),
                       )
                     : const Icon(Icons.auto_awesome_outlined),
-                label: Text(_isScanning ? 'Scanning...' : 'Scan Into Draft'),
+                label: Text(_isScanning ? 'Scanning with AI...' : 'Scan Into Draft'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

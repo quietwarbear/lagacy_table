@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../services/subscription_service.dart';
+import '../services/api_service.dart';
 
 enum SubscriptionTier { none, heritage, legacy }
 
@@ -11,12 +12,16 @@ class SubscriptionProvider extends ChangeNotifier {
   String? _errorMessage;
   SubscriptionTier _tier = SubscriptionTier.none;
   Offerings? _offerings;
+  int _creditsBalance = 0;
+  int _monthlyAllowance = 3;
 
   bool get isLoading => _isLoading;
   bool get isRestoring => _isRestoring;
   String? get errorMessage => _errorMessage;
   SubscriptionTier get tier => _tier;
   Offerings? get offerings => _offerings;
+  int get creditsBalance => _creditsBalance;
+  int get monthlyAllowance => _monthlyAllowance;
 
   bool get hasAnySubscription => _tier != SubscriptionTier.none;
   bool get hasHeritage =>
@@ -35,6 +40,9 @@ class SubscriptionProvider extends ChangeNotifier {
       _tier = _entitlementToTier(activeEntitlement);
 
       _offerings = await SubscriptionService.getOfferings();
+
+      // Also fetch credit balance from backend
+      await loadCredits();
     } catch (e) {
       _errorMessage = 'Unable to load subscription info. Please try again.';
       debugPrint('SubscriptionProvider.loadSubscriptionStatus error: $e');
@@ -42,6 +50,25 @@ class SubscriptionProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Load AI credit balance from the backend
+  Future<void> loadCredits() async {
+    try {
+      final response = await apiService.apiClient.get('/subscriptions/status');
+      final data = response.data;
+      _creditsBalance = data['credits_balance'] ?? 0;
+      _monthlyAllowance = data['monthly_allowance'] ?? 3;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('SubscriptionProvider.loadCredits error: $e');
+    }
+  }
+
+  /// Update credits after an AI action (called after scan/voice/link)
+  void updateCredits(int remaining) {
+    _creditsBalance = remaining;
+    notifyListeners();
   }
 
   /// Purchase a package and refresh subscription status

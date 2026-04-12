@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/app_theme.dart';
 import '../providers/subscription_provider.dart';
 import '../services/storage_service.dart';
@@ -203,6 +204,46 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               fontFamily: 'Manrope',
               color: textSecondary,
             ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () => launchUrl(
+                  Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: Text(
+                  'Terms of Use',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Manrope',
+                    color: brandPrimary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+              Text(
+                '  •  ',
+                style: TextStyle(fontSize: 12, color: textSecondary),
+              ),
+              GestureDetector(
+                onTap: () => launchUrl(
+                  Uri.parse('https://legacytable.app/privacy-policy'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: Text(
+                  'Privacy Policy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Manrope',
+                    color: brandPrimary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           // ── Error message ─────────────────────────────────────────────
@@ -574,14 +615,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   // ── Actions ──────────────────────────────────────────────────────────────
 
   Future<void> _purchase(SubscriptionProvider sub) async {
-    final offerings = sub.offerings;
+    var offerings = sub.offerings;
+    if (offerings == null) {
+      // Attempt to reload offerings before giving up
+      await sub.loadSubscriptionStatus();
+      offerings = sub.offerings;
+    }
     if (offerings == null) {
       _showPurchaseMessage(
         context,
-        'Subscription plans are still loading. Please try again in a moment.',
+        'Unable to load subscription plans. Please check your internet connection and try again.',
         isError: true,
       );
-      await sub.loadSubscriptionStatus();
       return;
     }
 

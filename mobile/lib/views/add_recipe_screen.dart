@@ -15,8 +15,26 @@ import '../widgets/styled_snackbar.dart';
 
 class AddRecipeScreen extends StatefulWidget {
   final Recipe? recipe; // Optional - if provided, we're in edit mode
+  // Optional initial values for AI-generated drafts
+  final String? initialTitle;
+  final List<String>? initialIngredients;
+  final String? initialInstructions;
+  final int? initialCookingTime;
+  final int? initialServings;
+  final String? initialCategory;
+  final String? initialDifficulty;
 
-  const AddRecipeScreen({super.key, this.recipe});
+  const AddRecipeScreen({
+    super.key,
+    this.recipe,
+    this.initialTitle,
+    this.initialIngredients,
+    this.initialInstructions,
+    this.initialCookingTime,
+    this.initialServings,
+    this.initialCategory,
+    this.initialDifficulty,
+  });
 
   @override
   State<AddRecipeScreen> createState() => _AddRecipeScreenState();
@@ -45,6 +63,25 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
     super.initState();
     _isEditing = widget.recipe != null;
     
+    // Initialize from AI-generated draft (scan, voice, link)
+    if (!_isEditing && widget.initialTitle != null) {
+      _titleController.text = widget.initialTitle!;
+      _instructionsController.text = widget.initialInstructions ?? '';
+      _selectedCategory = widget.initialCategory;
+      _selectedDifficulty = widget.initialDifficulty?.isNotEmpty == true
+          ? widget.initialDifficulty![0].toUpperCase() + widget.initialDifficulty!.substring(1)
+          : 'Easy';
+      _cookingTime = widget.initialCookingTime ?? 30;
+      _servings = widget.initialServings ?? 4;
+
+      if (widget.initialIngredients != null && widget.initialIngredients!.isNotEmpty) {
+        _ingredientControllers.clear();
+        for (var ingredient in widget.initialIngredients!) {
+          _ingredientControllers.add(TextEditingController(text: ingredient));
+        }
+      }
+    }
+
     // Initialize form fields if editing
     if (_isEditing && widget.recipe != null) {
       final recipe = widget.recipe!;

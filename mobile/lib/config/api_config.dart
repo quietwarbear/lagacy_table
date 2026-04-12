@@ -47,6 +47,11 @@ class ApiConfig {
   static String get subscriptionWebhook => '/subscriptions/webhook';
   static String get subscriptionPortal => '/subscriptions/portal';
 
+  // AI endpoints (relative paths)
+  static String get scanRecipe => '/ai/scan-recipe';
+  static String get voiceToRecipe => '/ai/voice-to-recipe';
+  static String get saveFromLink => '/ai/save-from-link';
+
   // Health check endpoints (relative paths)
   static String get healthCheck => '/health';
   static String get apiRoot => '/';

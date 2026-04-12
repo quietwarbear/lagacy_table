@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to your microphone to record voice recipes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to your camera to take photos of your recipes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
