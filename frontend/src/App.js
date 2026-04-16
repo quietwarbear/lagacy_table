@@ -623,12 +623,15 @@ const LoginPage = () => {
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const { login, user } = useAuth();
+  const { hasAny, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
   const googleButtonRef = React.useRef(null);
 
   useEffect(() => {
-    if (user) navigate("/subscribe");
-  }, [user, navigate]);
+    if (user && !subLoading) {
+      navigate(hasAny ? "/" : "/subscribe");
+    }
+  }, [user, subLoading, hasAny, navigate]);
 
   // Initialize Google Sign-In
   useEffect(() => {
@@ -719,7 +722,7 @@ const LoginPage = () => {
       });
       login(res.data.token, res.data.user);
       toast.success("Welcome!");
-      navigate("/subscribe");
+      // Navigation handled by useEffect based on subscription status
     } catch (error) {
       if (error?.error === "popup_closed_by_user" || error?.code === 1001) {
         // user cancelled — no toast
@@ -738,7 +741,7 @@ const LoginPage = () => {
       });
       login(res.data.token, res.data.user);
       toast.success("Welcome!");
-      navigate("/subscribe");
+      // Navigation handled by useEffect based on subscription status
     } catch (error) {
       toast.error(error.response?.data?.detail || "Google sign-in failed");
     }
@@ -754,7 +757,7 @@ const LoginPage = () => {
       const response = await axios.post(`${API}${endpoint}`, payload);
       login(response.data.token, response.data.user);
       toast.success(isLogin ? "Welcome back!" : "Account created successfully!");
-      navigate("/subscribe");
+      // Navigation handled by useEffect based on subscription status
     } catch (error) {
       toast.error(error.response?.data?.detail || "An error occurred");
     }
