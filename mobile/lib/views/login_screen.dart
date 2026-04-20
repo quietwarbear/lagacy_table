@@ -180,7 +180,9 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Apple sign-in error: $e');
+      debugPrint('Stack trace: $stackTrace');
       if (mounted) {
         String errorMessage = 'Apple sign-in failed';
         if (e.toString().contains('Exception:')) {
