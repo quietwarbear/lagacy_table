@@ -211,7 +211,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             children: [
               GestureDetector(
                 onTap: () => launchUrl(
-                  Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                  Uri.parse('https://api.legacytable.app/terms'),
                   mode: LaunchMode.externalApplication,
                 ),
                 child: Text(
@@ -230,7 +230,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               GestureDetector(
                 onTap: () => launchUrl(
-                  Uri.parse('https://legacytable.app/privacy-policy'),
+                  Uri.parse('https://api.legacytable.app/privacy-policy'),
                   mode: LaunchMode.externalApplication,
                 ),
                 child: Text(

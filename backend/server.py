@@ -725,6 +725,14 @@ def get_apple_public_key(kid: str):
             return key_data
     return None
 
+def _b64url_decode(data: str) -> bytes:
+    """Decode base64url without padding — add correct padding as needed."""
+    padding = 4 - (len(data) % 4)
+    if padding != 4:
+        data += "=" * padding
+    return base64.urlsafe_b64decode(data)
+
+
 async def verify_apple_token(id_token: str):
     """Verify an Apple identity token and return the claims"""
     try:
@@ -745,33 +753,49 @@ async def verify_apple_token(id_token: str):
                 break
 
         if not key_data:
+            # Keys may have rotated — clear cache and retry once
+            global _apple_jwks_cache, _apple_jwks_cache_time
+            _apple_jwks_cache = None
+            _apple_jwks_cache_time = None
+            apple_keys = await get_apple_public_keys()
+            for k in apple_keys:
+                if k.get("kid") == kid:
+                    key_data = k
+                    break
+
+        if not key_data:
             raise HTTPException(status_code=401, detail="Apple token kid not found")
 
-        # Reconstruct the public key from JWK
-        n = int.from_bytes(base64.urlsafe_b64decode(key_data["n"] + "=="), byteorder="big")
-        e = int.from_bytes(base64.urlsafe_b64decode(key_data["e"] + "=="), byteorder="big")
+        # Reconstruct the public key from JWK — use proper base64url decoding
+        n = int.from_bytes(_b64url_decode(key_data["n"]), byteorder="big")
+        e = int.from_bytes(_b64url_decode(key_data["e"]), byteorder="big")
         public_numbers = RSAPublicNumbers(e, n)
         public_key = public_numbers.public_key(default_backend())
 
-        # Verify the token — accept both native Bundle ID and web Services ID
-        valid_audiences = [
-            a for a in [
-                os.environ.get("APPLE_BUNDLE_ID"),
-                os.environ.get("APPLE_SERVICE_ID"),
-            ] if a
-        ]
+        # Verify the token — accept the native Bundle ID
+        # For native iOS apps, the audience is the Bundle ID
+        bundle_id = os.environ.get("APPLE_BUNDLE_ID", "com.htrecipes.familyRecipeApp")
+        valid_audiences = [bundle_id]
+        service_id = os.environ.get("APPLE_SERVICE_ID")
+        if service_id:
+            valid_audiences.append(service_id)
+
         claims = pyjwt.decode(
             id_token,
             public_key,
             algorithms=["RS256"],
-            audience=valid_audiences or None,
+            audience=valid_audiences,
             issuer="https://appleid.apple.com",
         )
 
         return claims
     except pyjwt.DecodeError as e:
+        logger.error("Apple token decode error: %s", str(e))
         raise HTTPException(status_code=401, detail=f"Invalid Apple token: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error("Apple token verification failed: %s", str(e))
         raise HTTPException(status_code=401, detail=f"Token verification failed: {str(e)}")
 
 @api_router.post("/auth/apple", response_model=TokenResponse)
@@ -780,18 +804,28 @@ async def apple_auth(body: AppleAuthRequest):
     # Verify the Apple identity token
     claims = await verify_apple_token(body.id_token)
 
-    email = claims.get("email", body.email or "").lower()
+    # Apple may return email in claims, in the client body, or as a private relay address
+    email = (claims.get("email") or body.email or "").lower().strip()
+    apple_sub = claims.get("sub", "")
+
     if not email:
-        raise HTTPException(status_code=400, detail="Email not provided by Apple")
+        # If Apple hid the email entirely, check if we already have a user linked by Apple sub
+        existing_by_sub = await db.users.find_one({"auth_provider": "apple", "apple_sub": apple_sub}, {"_id": 0})
+        if existing_by_sub:
+            email = existing_by_sub["email"]
+        else:
+            raise HTTPException(status_code=400, detail="Email not provided by Apple. Please allow email sharing in Apple ID settings and try again.")
 
     # Use provided full_name or extract from claims sub
-    full_name = body.full_name or claims.get("sub", "")
+    full_name = body.full_name or ""
 
     # Check if user exists
     user = await db.users.find_one({"email": email}, {"_id": 0})
 
     if user:
-        # Existing user — log them in
+        # Existing user — log them in; store apple_sub if not already saved
+        if apple_sub and not user.get("apple_sub"):
+            await db.users.update_one({"id": user["id"]}, {"$set": {"apple_sub": apple_sub}})
         user = await refresh_credits_if_needed(user)
         token = create_token(user["id"])
         user_response = UserResponse(
@@ -820,6 +854,7 @@ async def apple_auth(body: AppleAuthRequest):
             "password_hash": None,  # Apple users have no password
             "avatar": None,  # Apple does not provide picture
             "auth_provider": "apple",
+            "apple_sub": apple_sub,
             "credits_balance": initial_credits,
             "credits_refresh_at": credits_refresh,
             "created_at": datetime.now(timezone.utc).isoformat()
@@ -2976,6 +3011,97 @@ async def android_asset_links():
             }
         }
     ])
+
+
+TERMS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Use — Legacy Table</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: #FFFBF5; color: #1a1a1a; padding: 32px 24px; max-width: 720px; margin: 0 auto; line-height: 1.7; }}
+    h1 {{ font-family: Georgia, serif; font-size: 28px; margin-bottom: 8px; }}
+    h2 {{ font-family: Georgia, serif; font-size: 20px; margin-top: 28px; margin-bottom: 8px; }}
+    p, li {{ font-size: 15px; color: #374151; margin-bottom: 12px; }}
+    ul {{ padding-left: 20px; }}
+    .updated {{ font-size: 13px; color: #9CA3AF; margin-bottom: 24px; }}
+  </style>
+</head>
+<body>
+  <h1>Terms of Use</h1>
+  <p class="updated">Last updated: April 2026</p>
+  <p>Welcome to Legacy Table, a family recipe and memory-keeping app by Ubuntu Market LLC. By using Legacy Table you agree to the following terms.</p>
+  <h2>Use of the App</h2>
+  <p>Legacy Table lets you store, organize, and share family recipes and memories within private family groups. You may use the app for personal, non-commercial purposes. You are responsible for any content you upload, including recipes, photos, and stories.</p>
+  <h2>Accounts</h2>
+  <p>You may create an account using email and password, Google Sign-In, or Sign in with Apple. You are responsible for keeping your login credentials secure. We reserve the right to suspend accounts that violate these terms.</p>
+  <h2>Subscriptions and Payments</h2>
+  <p>Legacy Table offers optional paid subscriptions (Heritage Keeper) that unlock additional AI recipe credits. Subscriptions are billed through Apple's App Store or Google Play and renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel subscriptions in your device's account settings. Prices may vary by region.</p>
+  <h2>Intellectual Property</h2>
+  <p>You retain ownership of all recipes, photos, and content you upload. By uploading content you grant Legacy Table a limited license to display it within the app to the family members you have shared it with.</p>
+  <h2>Termination</h2>
+  <p>You may delete your account at any time from Settings. We may terminate accounts that violate these terms or are used for abusive purposes.</p>
+  <h2>Limitation of Liability</h2>
+  <p>Legacy Table is provided "as is." Ubuntu Market LLC is not liable for data loss, service interruptions, or damages arising from your use of the app.</p>
+  <h2>Changes</h2>
+  <p>We may update these terms from time to time. Continued use of the app after changes constitutes acceptance.</p>
+  <h2>Contact</h2>
+  <p>Questions? Reach us at support@ubuntumarket.com.</p>
+</body>
+</html>"""
+
+PRIVACY_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Legacy Table</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: #FFFBF5; color: #1a1a1a; padding: 32px 24px; max-width: 720px; margin: 0 auto; line-height: 1.7; }}
+    h1 {{ font-family: Georgia, serif; font-size: 28px; margin-bottom: 8px; }}
+    h2 {{ font-family: Georgia, serif; font-size: 20px; margin-top: 28px; margin-bottom: 8px; }}
+    p, li {{ font-size: 15px; color: #374151; margin-bottom: 12px; }}
+    ul {{ padding-left: 20px; }}
+    .updated {{ font-size: 13px; color: #9CA3AF; margin-bottom: 24px; }}
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: April 2026</p>
+  <p>Ubuntu Market LLC ("we") operates Legacy Table. This policy explains what data we collect and how we use it.</p>
+  <h2>Data We Collect</h2>
+  <p>We collect the information you provide when creating an account (name, email, profile photo) and content you upload (recipes, photos, stories). If you sign in with Google or Apple, we receive your name and email from the identity provider. We also collect basic usage analytics and device information to improve the app.</p>
+  <h2>How We Use Your Data</h2>
+  <p>Your data is used to operate the app, display your content to your family group, process subscription payments, and improve the service. We do not sell your personal information to third parties.</p>
+  <h2>Data Storage</h2>
+  <p>Your data is stored securely in cloud databases. Recipe photos and attachments are stored in encrypted cloud storage.</p>
+  <h2>Third-Party Services</h2>
+  <p>We use Stripe for payment processing, RevenueCat for subscription management, and Google/Apple for authentication. Each service has its own privacy policy.</p>
+  <h2>Data Deletion</h2>
+  <p>You can delete your account and all associated data from the Settings screen in the app, or by contacting us at support@ubuntumarket.com.</p>
+  <h2>Children</h2>
+  <p>Legacy Table is not directed at children under 13. We do not knowingly collect data from children under 13.</p>
+  <h2>Changes</h2>
+  <p>We may update this policy from time to time. We will notify you of material changes through the app.</p>
+  <h2>Contact</h2>
+  <p>Questions? Reach us at support@ubuntumarket.com.</p>
+</body>
+</html>"""
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_of_use():
+    return HTMLResponse(content=TERMS_HTML)
+
+
+@app.get("/privacy-policy", response_class=HTMLResponse)
+async def privacy_policy():
+    return HTMLResponse(content=PRIVACY_HTML)
 
 
 # Include router
