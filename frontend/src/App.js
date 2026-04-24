@@ -25,6 +25,7 @@ import {
 } from "./components/ui/alert-dialog";
 
 import { SubscriptionProvider, useSubscription, PricingPage, SubscriptionSuccessPage, CreditsBadge, CreditsGate } from "./subscription";
+import LandingPage from "./landing/LandingPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api`;
@@ -629,7 +630,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (user && !subLoading) {
-      navigate(hasAny ? "/" : "/subscribe");
+      navigate(hasAny ? "/home" : "/subscribe");
     }
   }, [user, subLoading, hasAny, navigate]);
 
@@ -1451,7 +1452,7 @@ const AddRecipePage = () => {
         },
       });
       toast.success("Recipe shared with the family!");
-      navigate("/");
+      navigate("/home");
     } catch (error) {
       const detail = error.response?.data?.detail;
       const msg = Array.isArray(detail)
@@ -1696,7 +1697,7 @@ const AddRecipePage = () => {
             <Button 
               type="button" 
               variant="outline" 
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/home")}
               className="rounded-full px-8 py-6"
               data-testid="cancel-btn"
             >
@@ -1774,7 +1775,7 @@ const EditRecipePage = () => {
         setAccessDenied(true);
       } else {
         toast.error("Recipe not found");
-        navigate("/");
+        navigate("/home");
       }
     }
     setLoading(false);
@@ -1888,7 +1889,7 @@ const EditRecipePage = () => {
             <h2 className="font-serif text-2xl font-semibold text-foreground mb-2">You don't have access to this recipe</h2>
             <p className="text-muted-foreground mb-6">Join the family to edit it, or it may be private to another family.</p>
             <div className="flex flex-wrap gap-3 justify-center">
-              <Button onClick={() => navigate("/")} className="rounded-full">Go home</Button>
+              <Button onClick={() => navigate("/home")} className="rounded-full">Go home</Button>
               {!user?.family_id && (
                 <Button variant="outline" onClick={() => navigate("/family")} className="rounded-full border-primary text-primary">Join a family</Button>
               )}
@@ -2627,7 +2628,7 @@ const RecipeDetailPage = () => {
         setRecipe(null);
       } else {
         toast.error("Recipe not found");
-        navigate("/");
+        navigate("/home");
       }
     }
     setLoading(false);
@@ -2683,7 +2684,7 @@ const RecipeDetailPage = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       toast.success("Recipe deleted");
-      navigate("/");
+      navigate("/home");
     } catch (error) {
       if (error.response?.status === 403) {
         toast.error("You can't delete this recipe");
@@ -2758,7 +2759,7 @@ const RecipeDetailPage = () => {
             <h2 className="font-serif text-2xl font-semibold text-foreground mb-2">You don't have access to this recipe</h2>
             <p className="text-muted-foreground mb-6">Join the family to see it, or it may be private to another family.</p>
             <div className="flex flex-wrap gap-3 justify-center">
-              <Button onClick={() => navigate("/")} className="rounded-full" data-testid="recipe-403-go-home">
+              <Button onClick={() => navigate("/home")} className="rounded-full" data-testid="recipe-403-go-home">
                 Go home
               </Button>
               {!user?.family_id && (
@@ -4059,7 +4060,7 @@ const CookModePage = () => {
         setAccessDenied(true);
       } else {
         toast.error("Recipe not found");
-        navigate("/");
+        navigate("/home");
       }
       setLoading(false);
     }
@@ -4688,7 +4689,7 @@ const FamilyPage = () => {
       });
       toast.success("Welcome! Sample recipes have been added.");
       await refreshUser();
-      navigate("/");
+      navigate("/home");
     } catch (err) {
       const msg = err.response?.data?.detail || "Could not create sample family";
       toast.error(msg);
@@ -6140,7 +6141,8 @@ function App() {
                 <Route path="/delete-account" element={<DeleteAccountPage />} />
                 <Route path="/subscribe" element={<ProtectedRoute><PricingPage /></ProtectedRoute>} />
                 <Route path="/subscription-success" element={<ProtectedRoute><SubscriptionSuccessPage /></ProtectedRoute>} />
-                <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
                 <Route path="/add-recipe" element={<ProtectedRoute><AddRecipePage /></ProtectedRoute>} />
                 <Route path="/scan-recipe" element={<ProtectedRoute><ScanRecipePage /></ProtectedRoute>} />
                 <Route path="/voice-recipe" element={<ProtectedRoute><VoiceRecipePage /></ProtectedRoute>} />
